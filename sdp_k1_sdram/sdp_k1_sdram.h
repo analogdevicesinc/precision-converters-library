@@ -42,8 +42,8 @@
 /* #define SDRAM_MEMORY_WIDTH            FMC_SDRAM_MEM_BUS_WIDTH_16 */
 #define SDRAM_MEMORY_WIDTH               FMC_SDRAM_MEM_BUS_WIDTH_32
 
-#define SDCLOCK_PERIOD                   FMC_SDRAM_CLOCK_PERIOD_2
-/* #define SDCLOCK_PERIOD                FMC_SDRAM_CLOCK_PERIOD_3 */
+/* #define SDCLOCK_PERIOD                   FMC_SDRAM_CLOCK_PERIOD_2 */ /* Works only with 3.3 logic level */
+#define SDCLOCK_PERIOD                   FMC_SDRAM_CLOCK_PERIOD_3  /* Works with both 1.8/3.3v logic level */
 
 #define REFRESH_COUNT                    ((uint32_t)0x0569)   /* SDRAM refresh counter (90Mhz SD clock) */
 

@@ -53,9 +53,9 @@
 #define __DMAx_CLK_ENABLE                 __HAL_RCC_DMA2_CLK_ENABLE
 #define __DMAx_CLK_DISABLE                __HAL_RCC_DMA2_CLK_DISABLE
 #define SDRAM_DMAx_CHANNEL                DMA_CHANNEL_0
-#define SDRAM_DMAx_STREAM                 DMA2_Stream0
-#define SDRAM_DMAx_IRQn                   DMA2_Stream0_IRQn
-#define BSP_SDRAM_DMA_IRQHandler          DMA2_Stream0_IRQHandler
+#define SDRAM_DMAx_STREAM                 DMA2_Stream4
+#define SDRAM_DMAx_IRQn                   DMA2_Stream4_IRQn
+#define BSP_SDRAM_DMA_IRQHandler          DMA2_Stream4_IRQHandler
 
 /* SDRAM register defines */
 #define SDRAM_MODEREG_BURST_LENGTH_1             ((uint16_t)0x0000)

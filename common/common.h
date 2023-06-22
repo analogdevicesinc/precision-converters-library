@@ -44,6 +44,10 @@
 /* Last accessible EEPROM address/location (default 32Kbit EEPROM size ) */
 #define MAX_REGISTER_ADDRESS	0xFFF
 
+/* Macros for stringification */
+#define XSTR(s)		#s
+#define STR(s)		XSTR(s)
+
 /******************************************************************************/
 /********************** Public/Extern Declarations ****************************/
 /******************************************************************************/

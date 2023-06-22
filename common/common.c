@@ -251,7 +251,7 @@ int32_t get_iio_context_attributes(struct iio_ctx_attr **ctx_attr,
 
 #if defined(FIRMWARE_VERSION)
 	(context_attributes + cnt)->name = "fw_version";
-	(context_attributes + cnt)->value = FIRMWARE_VERSION;
+	(context_attributes + cnt)->value = STR(FIRMWARE_VERSION);
 	cnt++;
 #endif
 

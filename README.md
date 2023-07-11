@@ -10,6 +10,7 @@ List of supporting libraries:
 - [sdp_k1_sdram](sdp_k1_sdram/README.md)
 - [tempsensors](tempsensors/README.md)
 - [adi_console_menu](adi_console_menu/README.md)
+- [pocket_lab](pocket_lab/README.md)
 
 ## Support
 Feel free to ask any question at [EngineerZone](https://ez.analog.com/)

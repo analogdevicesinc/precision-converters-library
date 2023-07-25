@@ -148,7 +148,7 @@ static int32_t validate_eeprom(struct no_os_eeprom_desc *eeprom_desc)
 	if (!valid_eeprom_addr_detected) {
 		printf("No valid EEPROM address detected\r\n");
 	} else {
-		printf("Valid EEPROM address detected: %d\r\n", eeprom_addr);
+		printf("Valid EEPROM address detected: 0x%x\r\n", eeprom_addr);
 	}
 
 	return 0;

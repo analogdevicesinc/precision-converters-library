@@ -12,5 +12,5 @@ List of supporting libraries:
 - [adi_console_menu](adi_console_menu/README.md)
 - [pocket_lab](pocket_lab/README.md)
 
-## Support
+## Support.
 Feel free to ask any question at [EngineerZone](https://ez.analog.com/)

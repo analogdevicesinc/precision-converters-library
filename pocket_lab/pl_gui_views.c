@@ -19,6 +19,7 @@
 
 #include "pl_gui_views.h"
 #include "pl_gui_iio_wrapper.h"
+#include "adi_fft.h"
 #include "no_os_delay.h"
 #include "no_os_util.h"
 #include "no_os_error.h"
@@ -32,17 +33,17 @@
 /************************ Macros/Constants ************************************/
 /******************************************************************************/
 
-/* Max scale values that can be attached to lvgl pl_gui_chart
+/* Max scale values that can be attached to lvgl chart wizard
  * are less than 2^32 (less than 9 digits), so displaying scale for
- * 32-bit ADC is not possible. Hence added scale range for
- * supporting 24-bit or lesser resolution ADCs
+ * 32-bit data is not possible. Hence added scale range for
+ * supporting 24-bit or lesser resolution part.
  **/
-#define PL_GUI_ADC_DATA_MAX_RANGE	16777215
-#define PL_GUI_ADC_DATA_MIN_RANGE	-16777215
+#define PL_GUI_DATA_MAX_RANGE	16777215
+#define PL_GUI_DATA_MIN_RANGE	-16777215
 
 /* lvgl can support only upto 4M (4 million) pixels scale range for
- * LCD displays, so actual ADC data needs to be rescaled in this
- * range for displaying correctly
+ * LCD displays, so actual data needs to be rescaled in this
+ * range for displaying correctly.
  **/
 #define PL_GUI_CHART_MAX_PXL_RANGE	2000000
 #define PL_GUI_CHART_MIN_PXL_RANGE	-2000000
@@ -65,8 +66,8 @@ static const char *pl_gui_btnm_hex_map[] = {
 	""
 };
 
-/* Capture channel pl_gui_chart series colours (unique for each channel,
- * max 16 channels) */
+/* Data capture channel series colours (unique for each channel,
+ * max 16 channels/colours) */
 static uint16_t pl_gui_capture_chn_ser_col[] = {
 	LV_PALETTE_RED,
 	LV_PALETTE_PURPLE,
@@ -94,19 +95,21 @@ static lv_obj_t *pl_gui_dd_chan_select;
 static lv_obj_t *pl_gui_dd_attr_select;
 /* Available attributes select dropdown object */
 static lv_obj_t *pl_gui_dd_avail_attr_select;
-/* Attribute r/w text object */
+/* Attribute r/w text area object */
 static lv_obj_t *pl_gui_ta_attr_rw_value;
 /* Button matrix keyboard object */
 static lv_obj_t *pl_gui_kb_btnmap;
 /* Text area common object */
 static lv_obj_t *pl_gui_ta_views;
-/* Register address text object */
+
+/* Register address text area object */
 static lv_obj_t *pl_gui_ta_reg_address;
-/* Register write value text object */
+/* Register write value text area object */
 static lv_obj_t *pl_gui_ta_reg_write_value;
-/* Register read value text object */
+/* Register read value text area object */
 static lv_obj_t *pl_gui_ta_reg_read_value;
-/* DMM start button object */
+
+/* DMM start/stop button object */
 static lv_obj_t *pl_gui_dmm_btn_start;
 /* DMM enable all button object */
 static lv_obj_t *pl_gui_dmm_btn_enable_all;
@@ -116,24 +119,59 @@ static lv_obj_t *pl_gui_dmm_btn_disable_all;
 static lv_obj_t **pl_gui_dmm_chn_checkbox;
 /* DMM channels textarea object */
 static lv_obj_t **pl_gui_dmm_chn_ta;
+/* Channels count from DMM view */
+static uint32_t pl_gui_dmm_chn_cnt;
 /* DMM run status */
 static bool pl_gui_dmm_is_running;
+
 /* Capture view channels checkbox object */
 static lv_obj_t **pl_gui_capture_chn_checkbox;
-/* Capture channels pl_gui_chart series */
+/* Capture view chart objects */
+static lv_obj_t *pl_gui_capture_chart_ovrly, *pl_gui_capture_chart;
+/* Capture channels overlay chart series */
 static lv_chart_series_t **pl_gui_capture_chn_ser;
-/* pl_gui_offset value for data representation */
-static int32_t **pl_gui_offset;
+/* Channels count from data capture view */
+static uint32_t pl_gui_capture_chn_cnt;
 /* Capture run status */
 bool pl_gui_capture_is_running;
-/* pl_gui_chart object */
-static lv_obj_t *pl_gui_chart, *pl_gui_chart1;
-/* Channels count */
-static uint32_t pl_gui_channels_cnt;
+
+/* FFT processing parameters */
+struct adi_fft_processing *pl_gui_fft_proc;
+/* FFT measurement parameters */
+struct adi_fft_measurements *pl_gui_fft_meas;
+/* FFT channels select dropdown object */
+static lv_obj_t *pl_gui_fft_chn_select;
+/* FFT channels series for FFT view chart */
+static lv_chart_series_t *pl_gui_fft_chn_ser;
+/* FFT view chart objects */
+static lv_obj_t *pl_gui_fft_chart;
+/* Channels count from FFT view */
+static uint32_t pl_gui_fft_chn_cnt;
+static lv_obj_t *thd_label;
+static lv_obj_t *snr_label;
+static lv_obj_t *dr_label;
+static lv_obj_t *fund_power_label;
+static lv_obj_t *fund_freq_label;
+static lv_obj_t *rms_noise_label;
+/* FFT run status */
+bool pl_gui_fft_is_running;
+
+/* Offset value for data representation */
+static int32_t **pl_gui_capture_offset;
+
 /* Current selected device dropdown count/index */
 static uint32_t pl_gui_device_indx;
+
 /* Channel scan information */
-static struct scan_type **pl_gui_chn_info;
+static struct scan_type **pl_gui_capture_chn_info;
+
+/* Local copies of function callbacks to convert input data to voltage */
+static adi_fft_data_to_volt_conv data_to_volt_without_vref;
+static adi_fft_data_to_volt_conv data_to_volt_wrt_vref;
+
+/* Local copy of function callback to convert input code to straight
+ * binary data */
+static adi_fft_code_to_straight_bin_conv code_to_straight_binary;
 
 /******************************************************************************/
 /************************ Functions Prototypes ********************************/
@@ -160,6 +198,15 @@ static void pl_replace_char(char *str, char find, char replace)
 }
 
 /**
+ * @brief 	Read the active device index for current view
+ * @return	active device index
+ */
+uint32_t pl_gui_get_active_device_index(void)
+{
+	return pl_gui_device_indx;
+}
+
+/**
  * @brief 	Read attribute and display it's value
  * @return	None
  */
@@ -171,12 +218,18 @@ static void pl_gui_read_and_display_attr(void)
 	uint32_t attr_pos;
 
 	/* Read channel type */
+	ibuf[0] = '\0';
+	obuf[0] = '\0';
 	lv_dropdown_get_selected_str(pl_gui_dd_chan_select, ibuf, sizeof(ibuf));
 	if (ibuf[0] == '\0') {
 		return;
 	}
 
+	/* Check attribute type (global/channel) */
 	if (!strcmp(ibuf, "global")) {
+		ibuf[0] = '\0';
+		obuf[0] = '\0';
+
 		lv_dropdown_get_selected_str(pl_gui_dd_attr_select, ibuf, sizeof(ibuf));
 		if (ibuf[0] == '\0') {
 			return;
@@ -199,6 +252,9 @@ static void pl_gui_read_and_display_attr(void)
 			return;
 		}
 	} else {
+		ibuf[0] = '\0';
+		obuf[0] = '\0';
+
 		lv_dropdown_get_selected_str(pl_gui_dd_attr_select, ibuf, sizeof(ibuf));
 		if (ibuf[0] == '\0') {
 			return;
@@ -242,15 +298,18 @@ static void pl_gui_update_and_readback_attr(void)
 	const char *text;
 
 	/* Read channel type */
+	ibuf[0] = '\0';
 	lv_dropdown_get_selected_str(pl_gui_dd_chan_select, ibuf, sizeof(ibuf));
 	if (ibuf[0] == '\0') {
 		return;
 	}
 
+	/* Check attribute type (global/channel) */
 	if (!strcmp(ibuf, "global")) {
 		/* Write global attribute */
 		attr_pos = lv_dropdown_get_selected(pl_gui_dd_attr_select);
 		text = lv_textarea_get_text(pl_gui_ta_attr_rw_value);
+		ibuf[0] = '\0';
 		lv_dropdown_get_selected_str(pl_gui_dd_attr_select, ibuf, sizeof(ibuf));
 		if (ibuf[0] == '\0') {
 			return;
@@ -267,6 +326,7 @@ static void pl_gui_update_and_readback_attr(void)
 		chn_pos -= 1;      // First position is for global attr
 		attr_pos = lv_dropdown_get_selected(pl_gui_dd_attr_select);
 		text = lv_textarea_get_text(pl_gui_ta_attr_rw_value);
+		ibuf[0] = '\0';
 		lv_dropdown_get_selected_str(pl_gui_dd_attr_select, ibuf, sizeof(ibuf));
 		if (ibuf[0] == '\0') {
 			return;
@@ -294,10 +354,12 @@ static void pl_gui_read_and_display_reg_val(uint32_t reg_addr)
 	char ibuf[50];
 
 	/* Save register address value into it's text area */
+	ibuf[0] = '\0';
 	sprintf(ibuf, "%X", reg_addr);
 	lv_textarea_set_text(pl_gui_ta_reg_address, ibuf);
 
 	/* Read register value and display into value read text area */
+	ibuf[0] = '\0';
 	pl_gui_read_reg(reg_addr, &reg_data, pl_gui_device_indx);
 	sprintf(ibuf, "%X", reg_data);
 	lv_textarea_set_text(pl_gui_ta_reg_read_value, ibuf);
@@ -317,17 +379,10 @@ static void pl_gui_write_and_readback_reg_val(uint32_t reg_addr,
 }
 
 /**
- * @brief 	Read the active device index
- * @return	active device index
- */
-uint32_t pl_gui_get_active_device_index(void)
-{
-	return pl_gui_device_indx;
-}
-
-/**
  * @brief 	Perform the DMM read operations
  * @return	None
+ * @note	DMM results are manipulated based on the raw, offset
+ *			and scale attribute values read from the device
  */
 void pl_gui_perform_dmm_read(void)
 {
@@ -339,7 +394,8 @@ void pl_gui_perform_dmm_read(void)
 	read_cntr++;
 	if (read_cntr > PL_GUI_DMM_READ_CNT) {
 		read_cntr = 0;
-		for (cnt = 0; cnt < pl_gui_channels_cnt; cnt++) {
+		for (cnt = 0; cnt < pl_gui_dmm_chn_cnt; cnt++) {
+			ibuf[0] = '\0';
 			if (lv_obj_get_state(pl_gui_dmm_chn_checkbox[cnt]) == LV_STATE_CHECKED) {
 				/* get DMM reading for current channel and display it into text area */
 				ret = pl_gui_get_dmm_reading(ibuf, cnt, pl_gui_device_indx);
@@ -353,7 +409,7 @@ void pl_gui_perform_dmm_read(void)
 }
 
 /**
- * @brief 	Rescale the data to fit within display pl_gui_chart pixel range
+ * @brief 	Rescale the data to fit within display chart pixel range
  * @param	data[in,out] - Rescaled data
  * @return	None
  */
@@ -361,9 +417,9 @@ static void pl_gui_rescale_data(int32_t *data)
 {
 	float scaler;
 
-	scaler = ((float)*data - (PL_GUI_ADC_DATA_MIN_RANGE)) / ((
-				PL_GUI_ADC_DATA_MAX_RANGE -
-				(PL_GUI_ADC_DATA_MIN_RANGE)));
+	scaler = ((float)*data - (PL_GUI_DATA_MIN_RANGE)) / ((
+				PL_GUI_DATA_MAX_RANGE -
+				(PL_GUI_DATA_MIN_RANGE)));
 	*data = ((PL_GUI_CHART_MAX_PXL_RANGE - (PL_GUI_CHART_MIN_PXL_RANGE)) * scaler) +
 		(PL_GUI_CHART_MIN_PXL_RANGE);
 }
@@ -376,25 +432,91 @@ static void pl_gui_rescale_data(int32_t *data)
  */
 void pl_gui_display_captured_data(uint8_t *buf, uint32_t rec_bytes)
 {
+	char obuf[50];
 	uint32_t chn;
 	uint32_t indx = 0;
 	uint32_t storage_bytes;
+	uint32_t code;
 	int32_t data;
+	static uint32_t cnt = 0;
 
 	/* Copy data into local buffer */
 	while (indx < rec_bytes) {
-		for (chn = 0; chn < pl_gui_channels_cnt; chn++) {
-			if (lv_obj_get_state(pl_gui_capture_chn_checkbox[chn]) == LV_STATE_CHECKED) {
-				storage_bytes = pl_gui_chn_info[chn]->storagebits >> 3;
-				memcpy((void *)&data, (void *)&buf[indx], storage_bytes);
-				data += *pl_gui_offset[chn];
+		if (pl_gui_capture_is_running) {
+			for (chn = 0; chn < pl_gui_capture_chn_cnt; chn++) {
+				if (lv_obj_get_state(pl_gui_capture_chn_checkbox[chn]) == LV_STATE_CHECKED) {
+					storage_bytes = pl_gui_capture_chn_info[chn]->storagebits >> 3;
+					memcpy((void *)&code, (void *)&buf[indx], storage_bytes);
 
-				pl_gui_rescale_data(&data);
+					/* Convert code to straight binary */
+					data = pl_gui_cnv_code_to_straight_binary(code, chn);
 
-				indx += storage_bytes;
-				lv_chart_set_next_value(pl_gui_chart, pl_gui_capture_chn_ser[chn], data);
+					pl_gui_rescale_data(&data);
+
+					lv_chart_set_next_value(pl_gui_capture_chart_ovrly, pl_gui_capture_chn_ser[chn],
+								data);
+				}
 			}
+		} else if (pl_gui_fft_is_running) {
+			chn = lv_dropdown_get_selected(pl_gui_fft_chn_select);
+			storage_bytes = pl_gui_capture_chn_info[chn]->storagebits >> 3;
+			memcpy((void *)&code, (void *)&buf[indx], storage_bytes);
+
+			/* Convert code to straight binary */
+			pl_gui_fft_proc->input_data[cnt++] = pl_gui_cnv_code_to_straight_binary(code,
+							     chn);
+
+			if (cnt >= ADI_FFT_MAX_SAMPLES) {
+				break;
+			}
+		} else {
+			return;
 		}
+
+		indx += storage_bytes;
+
+		if (cnt >= ADI_FFT_MAX_SAMPLES) {
+			break;
+		}
+	}
+
+	if (pl_gui_fft_is_running && cnt >= ADI_FFT_MAX_SAMPLES) {
+		/* Perform FFT measurements */
+		adi_fft_perform(pl_gui_fft_proc, pl_gui_fft_meas);
+
+		/* Display FFT results */
+		for (cnt = 0; cnt < ADI_FFT_MAX_SAMPLES / 2; cnt++) {
+			lv_chart_set_next_value(pl_gui_fft_chart,
+						pl_gui_fft_chn_ser,
+						pl_gui_fft_proc->fft_dB[cnt]);
+		}
+
+		obuf[0] = '\0';
+		sprintf(obuf, "%.3f dB", pl_gui_fft_meas->THD);
+		lv_label_set_text(thd_label, obuf);
+
+		obuf[0] = '\0';
+		sprintf(obuf, "%.3f dB", pl_gui_fft_meas->SNR);
+		lv_label_set_text(snr_label, obuf);
+
+		obuf[0] = '\0';
+		sprintf(obuf, "%.3f dB", pl_gui_fft_meas->DR);
+		lv_label_set_text(dr_label, obuf);
+
+		obuf[0] = '\0';
+		sprintf(obuf, "%.3f dBFS", pl_gui_fft_meas->harmonics_mag_dbfs[0]);
+		lv_label_set_text(fund_power_label, obuf);
+
+		obuf[0] = '\0';
+		sprintf(obuf, "%.3f Hz",
+			pl_gui_fft_meas->harmonics_freq[0]*pl_gui_fft_proc->bin_width);
+		lv_label_set_text(fund_freq_label, obuf);
+
+		obuf[0] = '\0';
+		sprintf(obuf, "%.3f uV", pl_gui_fft_meas->RMS_noise * 1000000.0);
+		lv_label_set_text(rms_noise_label, obuf);
+
+		cnt = 0;
 	}
 }
 
@@ -406,7 +528,7 @@ void pl_gui_display_captured_data(uint8_t *buf, uint32_t rec_bytes)
  */
 void pl_gui_store_chn_info(struct scan_type *ch_info, uint32_t chn_indx)
 {
-	memcpy(pl_gui_chn_info[chn_indx], ch_info, sizeof(*ch_info));
+	memcpy(pl_gui_capture_chn_info[chn_indx], ch_info, sizeof(*ch_info));
 }
 
 /**
@@ -418,6 +540,7 @@ void pl_gui_get_capture_chns_mask(uint32_t *chn_mask)
 {
 	uint32_t cnt;
 	uint32_t mask = 0x1;
+	uint32_t chn_pos;
 
 	if (!chn_mask) {
 		return;
@@ -425,11 +548,19 @@ void pl_gui_get_capture_chns_mask(uint32_t *chn_mask)
 
 	*chn_mask = 0;
 
-	for (cnt = 0; cnt < pl_gui_channels_cnt; cnt++) {
-		if (lv_obj_get_state(pl_gui_capture_chn_checkbox[cnt]) == LV_STATE_CHECKED) {
-			*chn_mask |= mask;
+	if (pl_gui_capture_is_running) {
+		for (cnt = 0; cnt < pl_gui_capture_chn_cnt; cnt++) {
+			if (lv_obj_get_state(pl_gui_capture_chn_checkbox[cnt]) == LV_STATE_CHECKED) {
+				*chn_mask |= mask;
+			}
+			mask <<= 1;
 		}
-		mask <<= 1;
+	} else if (pl_gui_fft_is_running) {
+		chn_pos = lv_dropdown_get_selected(pl_gui_fft_chn_select);
+		mask <<= chn_pos;
+		*chn_mask = mask;
+	} else {
+		return;
 	}
 }
 
@@ -449,6 +580,15 @@ bool pl_gui_is_dmm_running(void)
 bool pl_gui_is_capture_running(void)
 {
 	return pl_gui_capture_is_running;
+}
+
+/**
+ * @brief 	FFT running status check
+ * @return	FFT running status
+ */
+bool pl_gui_is_fft_running(void)
+{
+	return pl_gui_fft_is_running;
 }
 
 /**
@@ -516,7 +656,7 @@ static void pl_gui_manage_btnmap_kb(lv_event_t *event)
 }
 
 /**
- * @brief 	Handle device list dropdown select events
+ * @brief 	Handle device list dropdown select events for current view
  * @param	event[in] - device list dropdown event
  * @return	None
  */
@@ -532,7 +672,7 @@ static void pl_gui_device_select_event_cb(lv_event_t *event)
 }
 
 /**
- * @brief 	Handle channel list dropdown select events
+ * @brief 	Handle channel list dropdown select events for current view
  * @param	event[in] - channel list dropdown event
  * @return	None
  */
@@ -544,6 +684,8 @@ static void pl_gui_chn_select_event_cb(lv_event_t *event)
 	uint32_t chn_pos;
 
 	if (code == LV_EVENT_VALUE_CHANGED) {
+		ibuf[0] = '\0';
+		obuf[0] = '\0';
 		lv_dropdown_get_selected_str(obj, ibuf, sizeof(ibuf));
 		if (ibuf[0] == '\0') {
 			return;
@@ -622,6 +764,7 @@ static void pl_gui_attr_avl_select_event_cb(lv_event_t *event)
 
 	if (code == LV_EVENT_VALUE_CHANGED) {
 		/* Read available attribute option select string */
+		ibuf[0] = '\0';
 		lv_dropdown_get_selected_str(obj, ibuf, sizeof(ibuf));
 		if (ibuf[0] == '\0') {
 			return;
@@ -678,7 +821,7 @@ static void pl_gui_reg_btn_event_cb(lv_event_t *event)
 }
 
 /**
- * @brief 	Handle text area select events
+ * @brief 	Handle text area select events for current view
  * @param	event[in] - text area select event
  * @return	None
  */
@@ -712,13 +855,13 @@ static void pl_gui_dmm_btn_event_cb(lv_event_t *event)
 
 		if (!strcmp(text, "Enable All")) {
 			if (!pl_gui_dmm_is_running) {
-				for (cnt = 0; cnt < pl_gui_channels_cnt; cnt++) {
+				for (cnt = 0; cnt < pl_gui_dmm_chn_cnt; cnt++) {
 					lv_obj_add_state(pl_gui_dmm_chn_checkbox[cnt], LV_STATE_CHECKED);
 				}
 			}
 		} else if (!strcmp(text, "Disable All")) {
 			if (!pl_gui_dmm_is_running) {
-				for (cnt = 0; cnt < pl_gui_channels_cnt; cnt++) {
+				for (cnt = 0; cnt < pl_gui_dmm_chn_cnt; cnt++) {
 					lv_obj_clear_state(pl_gui_dmm_chn_checkbox[cnt], LV_STATE_CHECKED);
 				}
 			}
@@ -753,13 +896,13 @@ static void pl_gui_capture_btn_event_cb(lv_event_t *event)
 
 		if (!strcmp(text, "Enable All")) {
 			if (!pl_gui_dmm_is_running) {
-				for (cnt = 0; cnt < pl_gui_channels_cnt; cnt++) {
+				for (cnt = 0; cnt < pl_gui_capture_chn_cnt; cnt++) {
 					lv_obj_add_state(pl_gui_capture_chn_checkbox[cnt], LV_STATE_CHECKED);
 				}
 			}
 		} else if (!strcmp(text, "Disable All")) {
 			if (!pl_gui_dmm_is_running) {
-				for (cnt = 0; cnt < pl_gui_channels_cnt; cnt++) {
+				for (cnt = 0; cnt < pl_gui_capture_chn_cnt; cnt++) {
 					lv_obj_clear_state(pl_gui_capture_chn_checkbox[cnt], LV_STATE_CHECKED);
 				}
 			}
@@ -768,10 +911,10 @@ static void pl_gui_capture_btn_event_cb(lv_event_t *event)
 				lv_label_set_text(label, "Start");
 				lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_GREEN), LV_PART_MAIN);
 
-				/* Remove previously enabled channels from pl_gui_chart series */
-				for (cnt = 0; cnt < pl_gui_channels_cnt; cnt++) {
-					if (lv_obj_get_state(pl_gui_capture_chn_checkbox[cnt]) == LV_STATE_CHECKED) {  
-						lv_chart_remove_series(pl_gui_chart, pl_gui_capture_chn_ser[cnt]);
+				/* Remove previously enabled channels from pl_gui_capture_chart_ovrly series */
+				for (cnt = 0; cnt < pl_gui_capture_chn_cnt; cnt++) {
+					if (lv_obj_get_state(pl_gui_capture_chn_checkbox[cnt]) == LV_STATE_CHECKED) {
+						lv_chart_remove_series(pl_gui_capture_chart_ovrly, pl_gui_capture_chn_ser[cnt]);
 						pl_gui_capture_chn_ser[cnt] = NULL;
 					}
 				}
@@ -779,13 +922,13 @@ static void pl_gui_capture_btn_event_cb(lv_event_t *event)
 				lv_label_set_text(label, "Stop");
 				lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_RED), LV_PART_MAIN);
 
-				/* Add enabled channels to pl_gui_chart series */
-				for (cnt = 0; cnt < pl_gui_channels_cnt; cnt++) {
+				/* Add enabled channels to pl_gui_capture_chart_ovrly series */
+				for (cnt = 0; cnt < pl_gui_capture_chn_cnt; cnt++) {
 					if (lv_obj_get_state(pl_gui_capture_chn_checkbox[cnt]) == LV_STATE_CHECKED) {
-						pl_gui_capture_chn_ser[cnt] = lv_chart_add_series(pl_gui_chart,
+						pl_gui_capture_chn_ser[cnt] = lv_chart_add_series(pl_gui_capture_chart_ovrly,
 									      lv_palette_main(pl_gui_capture_chn_ser_col[cnt]),
 									      LV_CHART_AXIS_PRIMARY_Y);
-						lv_chart_set_point_count(pl_gui_chart, 400);
+						lv_chart_set_point_count(pl_gui_capture_chart_ovrly, 400);
 					}
 				}
 			}
@@ -795,14 +938,96 @@ static void pl_gui_capture_btn_event_cb(lv_event_t *event)
 }
 
 /**
+ * @brief 	Handle FFT view buttons events
+ * @param	event[in] - FFT view buttons event
+ * @return	None
+ */
+static void pl_gui_fft_btn_event_cb(lv_event_t *event)
+{
+	char *text;
+	lv_event_code_t code = lv_event_get_code(event);
+	lv_obj_t *btn = lv_event_get_target(event);
+
+	if (code == LV_EVENT_CLICKED) {
+		lv_obj_t *label = lv_obj_get_child(btn, 0);
+		text = lv_label_get_text(label);
+
+		if (pl_gui_fft_is_running) {
+			lv_label_set_text(label, "Start");
+			lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_GREEN), LV_PART_MAIN);
+
+			/* Remove previously enabled channel from series */
+			lv_chart_remove_series(pl_gui_fft_chart, pl_gui_fft_chn_ser);
+			pl_gui_fft_chn_ser = NULL;
+		} else {
+			lv_label_set_text(label, "Stop");
+			lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_RED), LV_PART_MAIN);
+
+			/* Add enabled channels to series */
+			pl_gui_fft_chn_ser = lv_chart_add_series(pl_gui_fft_chart,
+					     lv_palette_main(LV_PALETTE_RED),
+					     LV_CHART_AXIS_PRIMARY_Y);
+			lv_chart_set_point_count(pl_gui_fft_chart, 400);
+		}
+		pl_gui_fft_is_running = !pl_gui_fft_is_running;
+	}
+}
+
+/**
+ * @brief 	Convert input data to voltage without Vref
+ * @param	data[in] - Input data (signed, straight binary)
+ * @param	chn[in] - Input channel
+ * @return	voltage
+ */
+float pl_gui_cnv_data_to_volt_without_vref(int32_t data, uint8_t chn)
+{
+	if (data_to_volt_without_vref != NULL) {
+		return data_to_volt_without_vref(data, chn);
+	} else {
+		return 0;
+	}
+}
+
+/**
+ * @brief 	Convert input data code to voltage w.r.t Vref
+ * @param	data[in] - Input data (signed, straight binary)
+ * @param	chn[in] - Input channel
+ * @return	voltage
+ */
+float pl_gui_cnv_data_to_volt_wrt_vref(int32_t data, uint8_t chn)
+{
+	if (data_to_volt_wrt_vref != NULL) {
+		return data_to_volt_wrt_vref(data, chn);
+	} else {
+		return 0;
+	}
+}
+
+/**
+ * @brief 	Convert input code to straight binary data
+ * @param	code[in] - Input code (unsigned)
+ * @param	chn[in] - Input channel
+ * @return	straight binary data
+ */
+int32_t pl_gui_cnv_code_to_straight_binary(uint32_t code, uint8_t chn)
+{
+	if (code_to_straight_binary != NULL) {
+		return code_to_straight_binary(code, chn);
+	} else {
+		return (code + *pl_gui_capture_offset[chn]);
+	}
+}
+
+/**
  * @brief 	Create pocket lab GUI attributes view
  * @param	parent[in] - pointer to attributes view instance
  * @return	0 in case of success, negative error code otherwise
  */
-int32_t pl_gui_create_attributes_view(lv_obj_t *parent)
+int32_t pl_gui_create_attributes_view(lv_obj_t *parent,
+				      struct pl_gui_init_param *param)
 {
 	int32_t ret;
-	char dropdown_list[100] = { };
+	char dropdown_list[100];
 	lv_obj_t *btn;
 	uint32_t nb_of_chn;
 
@@ -810,6 +1035,7 @@ int32_t pl_gui_create_attributes_view(lv_obj_t *parent)
 	lv_obj_t *label = lv_label_create(parent);
 
 	/* Get device names */
+	dropdown_list[0] = '\0';
 	ret = pl_gui_get_dev_names(dropdown_list);
 	if (ret) {
 		return ret;
@@ -829,6 +1055,7 @@ int32_t pl_gui_create_attributes_view(lv_obj_t *parent)
 	dropdown_list[0] = '\0';
 	strcat(dropdown_list, "global\n");
 
+	/* Get list of all channels for selected device */
 	ret = pl_gui_get_chn_names(dropdown_list, &nb_of_chn, pl_gui_device_indx);
 	if (ret) {
 		return ret;
@@ -947,15 +1174,34 @@ int32_t pl_gui_create_attributes_view(lv_obj_t *parent)
  * @param	parent[in] - pointer to register view instance
  * @return	0 in case of success, negative error code otherwise
  */
-int32_t pl_gui_create_register_view(lv_obj_t *parent)
+int32_t pl_gui_create_register_view(lv_obj_t *parent,
+				    struct pl_gui_init_param *param)
 {
+	char dropdown_list[50];
+	int32_t ret;
+
+	/* Get device names */
+	dropdown_list[0] = '\0';
+	ret = pl_gui_get_dev_names(dropdown_list);
+	if (ret) {
+		return ret;
+	}
+
+	/* Device select menu */
+	pl_gui_dd_device_select = lv_dropdown_create(parent);
+	lv_obj_align(pl_gui_dd_device_select, LV_ALIGN_TOP_MID, 0, 0);
+	lv_dropdown_set_options(pl_gui_dd_device_select, dropdown_list);
+	lv_obj_add_event_cb(pl_gui_dd_device_select, pl_gui_device_select_event_cb,
+			    LV_EVENT_ALL,
+			    NULL);
+
 	/* Register Address textarea */
 	pl_gui_ta_reg_address = lv_textarea_create(parent);
 	lv_textarea_set_one_line(pl_gui_ta_reg_address, true);
 	lv_textarea_set_text(pl_gui_ta_reg_address, "0");
 	lv_textarea_set_accepted_chars(pl_gui_ta_reg_address, "0123456789ABCDEFabcdef");
 	lv_textarea_set_max_length(pl_gui_ta_reg_address, 8);
-	lv_obj_align(pl_gui_ta_reg_address, LV_ALIGN_TOP_MID, 0, 20);
+	lv_obj_align(pl_gui_ta_reg_address, LV_ALIGN_TOP_MID, 0, 80);
 	lv_obj_add_event_cb(pl_gui_ta_reg_address, pl_gui_ta_event_handler,
 			    LV_EVENT_CLICKED,
 			    NULL);
@@ -965,15 +1211,13 @@ int32_t pl_gui_create_register_view(lv_obj_t *parent)
 	lv_label_set_text(label, "Register Address (hex)");
 	lv_obj_align_to(label, pl_gui_ta_reg_address, LV_ALIGN_OUT_LEFT_MID, -10, 0);
 
-	/* Register address increment/decrement buttons */
+	/* Register address increment/decrement buttons and labels */
 	lv_obj_t *btn = lv_btn_create(parent);
 	lv_obj_set_size(btn, 50, 30);
 	lv_obj_align_to(btn, pl_gui_ta_reg_address, LV_ALIGN_OUT_RIGHT_MID, 10, 0);
-
 	label = lv_label_create(btn);
 	lv_label_set_text(label, "-");
 	lv_obj_center(label);
-
 	lv_obj_add_event_cb(btn, pl_gui_reg_btn_event_cb, LV_EVENT_ALL, NULL);
 	lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_ORANGE),
 				  LV_PART_MAIN);
@@ -981,11 +1225,9 @@ int32_t pl_gui_create_register_view(lv_obj_t *parent)
 	btn = lv_btn_create(parent);
 	lv_obj_set_size(btn, 50, 30);
 	lv_obj_align_to(btn, pl_gui_ta_reg_address, LV_ALIGN_OUT_RIGHT_MID, 70, 0);
-
 	label = lv_label_create(btn);
 	lv_label_set_text(label, "+");
 	lv_obj_center(label);
-
 	lv_obj_add_event_cb(btn, pl_gui_reg_btn_event_cb, LV_EVENT_ALL, NULL);
 	lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_BLUE), LV_PART_MAIN);
 
@@ -1075,22 +1317,40 @@ int32_t pl_gui_create_register_view(lv_obj_t *parent)
  * @param	parent[in] - pointer to DMM view instance
  * @return	0 in case of success, negative error code otherwise
  */
-int32_t pl_gui_create_dmm_view(lv_obj_t *parent)
+int32_t pl_gui_create_dmm_view(lv_obj_t *parent,
+			       struct pl_gui_init_param *param)
 {
 	int32_t ret;
-	char chn_list[100] = { };
-	char chn_name[10] = { };
-	char chn_unit[10] = { };
-	char label_str[30] = { };
+	char dropdown_list[100];
+	char chn_name[10];
+	char chn_unit[10];
+	char label_str[30];
 	uint32_t cnt;
 	uint32_t i=0, j=0;
 	uint32_t row_height;
 	lv_obj_t *obj;
 
+	/* Get device names */
+	dropdown_list[0] = '\0';
+	ret = pl_gui_get_dev_names(dropdown_list);
+	if (ret) {
+		return ret;
+	}
+
+	/* Device select menu */
+	pl_gui_dd_device_select = lv_dropdown_create(parent);
+	lv_obj_align(pl_gui_dd_device_select, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 0);
+	lv_dropdown_set_options(pl_gui_dd_device_select, dropdown_list);
+	lv_obj_add_event_cb(pl_gui_dd_device_select, pl_gui_device_select_event_cb,
+			    LV_EVENT_ALL,
+			    NULL);
+
 	/* DMM start button */
 	pl_gui_dmm_btn_start = lv_btn_create(parent);
-	lv_obj_set_size(pl_gui_dmm_btn_start, 160, 50);
-	lv_obj_set_pos(pl_gui_dmm_btn_start, 10, 0);
+	lv_obj_set_size(pl_gui_dmm_btn_start, 120, 40);
+	lv_obj_align_to(pl_gui_dmm_btn_start, pl_gui_dmm_btn_start,
+			LV_ALIGN_OUT_BOTTOM_LEFT, 0,
+			30);
 	lv_obj_add_event_cb(pl_gui_dmm_btn_start, pl_gui_dmm_btn_event_cb, LV_EVENT_ALL,
 			    NULL);
 	lv_obj_set_style_bg_color(pl_gui_dmm_btn_start,
@@ -1104,9 +1364,9 @@ int32_t pl_gui_create_dmm_view(lv_obj_t *parent)
 
 	/* DMM enable all button */
 	pl_gui_dmm_btn_enable_all = lv_btn_create(parent);
-	lv_obj_set_size(pl_gui_dmm_btn_enable_all, 160, 50);
+	lv_obj_set_size(pl_gui_dmm_btn_enable_all, 120, 40);
 	lv_obj_align_to(pl_gui_dmm_btn_enable_all, pl_gui_dmm_btn_start,
-			LV_ALIGN_OUT_BOTTOM_MID, 0,
+			LV_ALIGN_OUT_BOTTOM_LEFT, 0,
 			30);
 	lv_obj_add_event_cb(pl_gui_dmm_btn_enable_all, pl_gui_dmm_btn_event_cb,
 			    LV_EVENT_ALL,
@@ -1119,9 +1379,9 @@ int32_t pl_gui_create_dmm_view(lv_obj_t *parent)
 
 	/* DMM disable all button */
 	pl_gui_dmm_btn_disable_all = lv_btn_create(parent);
-	lv_obj_set_size(pl_gui_dmm_btn_disable_all, 160, 50);
+	lv_obj_set_size(pl_gui_dmm_btn_disable_all, 120, 40);
 	lv_obj_align_to(pl_gui_dmm_btn_disable_all, pl_gui_dmm_btn_enable_all,
-			LV_ALIGN_OUT_BOTTOM_MID, 0,
+			LV_ALIGN_OUT_BOTTOM_LEFT, 0,
 			30);
 	lv_obj_add_event_cb(pl_gui_dmm_btn_disable_all, pl_gui_dmm_btn_event_cb,
 			    LV_EVENT_ALL,
@@ -1135,33 +1395,40 @@ int32_t pl_gui_create_dmm_view(lv_obj_t *parent)
 	/* Create the scrolling view container */
 	lv_obj_t *cont_col = lv_obj_create(parent);
 	lv_obj_set_size(cont_col, 550, 380);
-	lv_obj_align_to(cont_col, pl_gui_dmm_btn_start, LV_ALIGN_OUT_RIGHT_TOP, 30, 0);
+	lv_obj_align_to(cont_col, pl_gui_dd_device_select, LV_ALIGN_OUT_RIGHT_TOP, 30,
+			0);
 
-	/* Get the name of all channels */
-	ret = pl_gui_get_chn_names(chn_list, &pl_gui_channels_cnt, pl_gui_device_indx);
+	/* Get the name of all channels for selected device */
+	dropdown_list[0] = '\0';
+	ret = pl_gui_get_chn_names(dropdown_list, &pl_gui_dmm_chn_cnt,
+				   pl_gui_device_indx);
 	if (ret) {
 		return ret;
 	}
 
-	pl_gui_dmm_chn_checkbox = calloc(pl_gui_channels_cnt, sizeof(lv_obj_t));
+	pl_gui_dmm_chn_checkbox = calloc(pl_gui_dmm_chn_cnt, sizeof(lv_obj_t));
 	if (!pl_gui_dmm_chn_checkbox) {
 		return -ENOMEM;
 	}
 
-	pl_gui_dmm_chn_ta = calloc(pl_gui_channels_cnt, sizeof(lv_obj_t));
+	pl_gui_dmm_chn_ta = calloc(pl_gui_dmm_chn_cnt, sizeof(lv_obj_t));
 	if (!pl_gui_dmm_chn_ta) {
 		ret = -ENOMEM;
 		goto error_dmm_chn_checkbox;
 	}
 
 	/* Display checkboxes for channels */
-	for (cnt = 0; cnt < pl_gui_channels_cnt; cnt++) {
+	for (cnt = 0; cnt < pl_gui_dmm_chn_cnt; cnt++) {
+		label_str[0] = '\0';
+		chn_unit[0] = '\0';
+		chn_name[0] = '\0';
 		row_height = 50;
 		j = 0;
 
-		while (chn_list[i] != '\n') {
-			chn_name[j++] = chn_list[i++];
+		while (dropdown_list[i] != '\n') {
+			chn_name[j++] = dropdown_list[i++];
 		}
+		chn_name[j] = '\0';
 		i++;
 
 		/* Add channel enable checkboxs */
@@ -1203,24 +1470,41 @@ error_dmm_chn_checkbox:
  * @param	parent[in] - pointer to data capture view instance
  * @return	0 in case of success, negative error code otherwise
  */
-int32_t pl_gui_create_capture_view(lv_obj_t *parent)
+int32_t pl_gui_create_capture_view(lv_obj_t *parent,
+				   struct pl_gui_init_param *param)
 {
 	int32_t ret;
 	uint32_t cnt;
-	char chn_list[100] = {};
-	char chn_name[10] = {};
-	char label_str[30] = {};
-	char ibuf[50] = {};
+	char dropdown_list[100];
+	char chn_name[10];
+	char label_str[30];
+	char ibuf[50];
 	uint32_t attr_pos;
 	uint32_t i = 0, j = 0;
 	lv_obj_t *obj;
 	lv_obj_t *start_btn, *enable_all_btn, *disable_all_btn;
 	lv_obj_t *label;
 
+	/* Get device names */
+	dropdown_list[0] = '\0';
+	ret = pl_gui_get_dev_names(dropdown_list);
+	if (ret) {
+		return ret;
+	}
+
+	/* Device select menu */
+	pl_gui_dd_device_select = lv_dropdown_create(parent);
+	lv_obj_align(pl_gui_dd_device_select, LV_ALIGN_OUT_RIGHT_TOP, 10, 0);
+	lv_dropdown_set_options(pl_gui_dd_device_select, dropdown_list);
+	lv_obj_add_event_cb(pl_gui_dd_device_select, pl_gui_device_select_event_cb,
+			    LV_EVENT_ALL,
+			    NULL);
+
 	/* Create the capture Start/Stop Button */
 	start_btn = lv_btn_create(parent);
 	lv_obj_set_size(start_btn, 100, 40);
-	lv_obj_set_pos(start_btn, 5, 0);
+	lv_obj_align_to(start_btn, pl_gui_dd_device_select, LV_ALIGN_OUT_RIGHT_TOP, 10,
+			0);
 	lv_obj_add_event_cb(start_btn, pl_gui_capture_btn_event_cb, LV_EVENT_ALL,
 			    NULL);
 	lv_obj_set_style_bg_color(start_btn, lv_palette_main(LV_PALETTE_GREEN),
@@ -1261,84 +1545,96 @@ int32_t pl_gui_create_capture_view(lv_obj_t *parent)
 	/* Create check boxes to enable display of channels */
 	lv_obj_t *cont_col = lv_obj_create(parent);
 	lv_obj_set_size(cont_col, 130, 340);
-	lv_obj_align_to(cont_col, start_btn, LV_ALIGN_OUT_BOTTOM_MID, 0, 10);
+	lv_obj_align_to(cont_col, pl_gui_dd_device_select, LV_ALIGN_OUT_BOTTOM_MID, 0,
+			10);
 	lv_obj_set_flex_flow(cont_col, LV_FLEX_FLOW_COLUMN);
 
-	/* Create a pl_gui_chart for displaying axises (not for actual data display) */
-	pl_gui_chart1 = lv_chart_create(parent);
-	lv_obj_set_size(pl_gui_chart1, 540, 340);
-	lv_obj_align_to(pl_gui_chart1, cont_col, LV_ALIGN_OUT_RIGHT_MID, 100, 0);
+	/* Create a pl_gui_capture_chart for displaying axises (not for actual data display) */
+	pl_gui_capture_chart = lv_chart_create(parent);
+	lv_obj_set_size(pl_gui_capture_chart, 540, 340);
+	lv_obj_align_to(pl_gui_capture_chart, cont_col, LV_ALIGN_OUT_RIGHT_MID, 100, 0);
 
 	/* Display labels on x and y axises */
-	lv_chart_set_axis_tick(pl_gui_chart1, LV_CHART_AXIS_PRIMARY_Y, 5, 0, 9, 1, true,
+	lv_chart_set_axis_tick(pl_gui_capture_chart, LV_CHART_AXIS_PRIMARY_Y, 5, 0, 9,
+			       1, true,
 			       100);
-	lv_chart_set_axis_tick(pl_gui_chart1, LV_CHART_AXIS_PRIMARY_X, 5, 0, 9, 1, true,
+	lv_chart_set_axis_tick(pl_gui_capture_chart, LV_CHART_AXIS_PRIMARY_X, 5, 0, 9,
+			       1, true,
 			       20);
 
-	/* Set the x and y axises range (ADC data range) */
-	lv_chart_set_range(pl_gui_chart1, LV_CHART_AXIS_PRIMARY_Y,
-			   PL_GUI_ADC_DATA_MIN_RANGE,
-			   PL_GUI_ADC_DATA_MAX_RANGE);
-	lv_chart_set_range(pl_gui_chart1, LV_CHART_AXIS_PRIMARY_X, 0,
+	/* Set the x and y axises range (Input data range) */
+	lv_chart_set_range(pl_gui_capture_chart, LV_CHART_AXIS_PRIMARY_Y,
+			   PL_GUI_DATA_MIN_RANGE,
+			   PL_GUI_DATA_MAX_RANGE);
+	lv_chart_set_range(pl_gui_capture_chart, LV_CHART_AXIS_PRIMARY_X, 0,
 			   PL_GUI_REQ_DATA_SAMPLES);
 
-	/* Create an overlay pl_gui_chart for displaying actual data */
-	pl_gui_chart = lv_chart_create(parent);
-	lv_obj_set_size(pl_gui_chart, 540, 340);
-	lv_obj_align_to(pl_gui_chart, cont_col, LV_ALIGN_OUT_RIGHT_MID, 100, 0);
-	lv_chart_set_type(pl_gui_chart, LV_CHART_TYPE_LINE);
-	lv_chart_set_update_mode(pl_gui_chart, LV_CHART_UPDATE_MODE_CIRCULAR);
+	/* Create an overlay pl_gui_capture_chart for displaying actual data */
+	pl_gui_capture_chart_ovrly = lv_chart_create(parent);
+	lv_obj_set_size(pl_gui_capture_chart_ovrly, 540, 340);
+	lv_obj_align_to(pl_gui_capture_chart_ovrly, cont_col, LV_ALIGN_OUT_RIGHT_MID,
+			100, 0);
+	lv_chart_set_type(pl_gui_capture_chart_ovrly, LV_CHART_TYPE_LINE);
+	lv_chart_set_update_mode(pl_gui_capture_chart_ovrly,
+				 LV_CHART_UPDATE_MODE_CIRCULAR);
 
-	/* Set the x and y axises range (rescaled from actual ADC data range) */
-	lv_chart_set_range(pl_gui_chart, LV_CHART_AXIS_PRIMARY_Y,
+	/* Set the x and y axises range (rescaled from actual input data range) */
+	lv_chart_set_range(pl_gui_capture_chart_ovrly, LV_CHART_AXIS_PRIMARY_Y,
 			   PL_GUI_CHART_MIN_PXL_RANGE,
 			   PL_GUI_CHART_MAX_PXL_RANGE);
-	lv_chart_set_range(pl_gui_chart, LV_CHART_AXIS_PRIMARY_X, 0,
+	lv_chart_set_range(pl_gui_capture_chart_ovrly, LV_CHART_AXIS_PRIMARY_X, 0,
 			   PL_GUI_REQ_DATA_SAMPLES);
 
 	/* Do not display points on the data */
 #if LV_VERSION_CHECK(9,0,0)
-	lv_obj_set_style_size(pl_gui_chart, 0, 0, LV_PART_INDICATOR);
+	lv_obj_set_style_size(pl_gui_capture_chart_ovrly, 0, 0, LV_PART_INDICATOR);
 #else
-	lv_obj_set_style_size(pl_gui_chart, 0, LV_PART_INDICATOR);
+	lv_obj_set_style_size(pl_gui_capture_chart_ovrly, 0, LV_PART_INDICATOR);
 #endif
 
 	/* Get the name of all channels and channel count */
-	ret = pl_gui_get_chn_names(chn_list, &pl_gui_channels_cnt, pl_gui_device_indx);
+	dropdown_list[0] = '\0';
+	ret = pl_gui_get_chn_names(dropdown_list, &pl_gui_capture_chn_cnt,
+				   pl_gui_device_indx);
 	if (ret) {
 		return ret;
 	}
 
-	pl_gui_capture_chn_checkbox = calloc(pl_gui_channels_cnt, sizeof(lv_obj_t));
+	pl_gui_capture_chn_checkbox = calloc(pl_gui_capture_chn_cnt, sizeof(lv_obj_t));
 	if (!pl_gui_capture_chn_checkbox) {
 		return -ENOMEM;
 	}
 
-	pl_gui_capture_chn_ser = calloc(pl_gui_channels_cnt, sizeof(lv_obj_t));
+	pl_gui_capture_chn_ser = calloc(pl_gui_capture_chn_cnt, sizeof(lv_obj_t));
 	if (!pl_gui_capture_chn_ser) {
 		ret = -ENOMEM;
 		goto error_capture_chn_ser;
 	}
 
-	pl_gui_chn_info = calloc(pl_gui_channels_cnt, sizeof(struct scan_type));
-	if (!pl_gui_chn_info) {
+	pl_gui_capture_chn_info = calloc(pl_gui_capture_chn_cnt,
+					 sizeof(struct scan_type));
+	if (!pl_gui_capture_chn_info) {
 		ret = -ENOMEM;
 		goto error_chn_info;
 	}
 
-	pl_gui_offset = calloc(pl_gui_channels_cnt, sizeof(int32_t));
-	if (!pl_gui_offset) {
+	pl_gui_capture_offset = calloc(pl_gui_capture_chn_cnt, sizeof(int32_t));
+	if (!pl_gui_capture_offset) {
 		ret = -ENOMEM;
 		goto error_offset;
 	}
 
-	/* Display checkboxes for channels */
-	for (cnt = 0; cnt < pl_gui_channels_cnt; cnt++) {
+	/* Display checkboxes for capture view channels */
+	for (cnt = 0; cnt < pl_gui_capture_chn_cnt; cnt++) {
+		ibuf[0] = '\0';
+		label_str[0] = '\0';
+		chn_name[0] = '\0';
 		j = 0;
 
-		while (chn_list[i] != '\n') {
-			chn_name[j++] = chn_list[i++];
+		while (dropdown_list[i] != '\n') {
+			chn_name[j++] = dropdown_list[i++];
 		}
+		chn_name[j] = '\0';
 		i++;
 
 		/* Add channel enable checkboxs */
@@ -1348,13 +1644,13 @@ int32_t pl_gui_create_capture_view(lv_obj_t *parent)
 		lv_checkbox_set_text(obj, label_str);
 		pl_gui_capture_chn_checkbox[cnt] = obj;
 
-		pl_gui_chn_info[cnt] = malloc(sizeof(struct scan_type));
-		if (!pl_gui_chn_info[cnt]) {
+		pl_gui_capture_chn_info[cnt] = malloc(sizeof(struct scan_type));
+		if (!pl_gui_capture_chn_info[cnt]) {
 			return -ENOMEM;
 		}
 
-		pl_gui_offset[cnt] = malloc(sizeof(int32_t));
-		if (!pl_gui_offset[cnt]) {
+		pl_gui_capture_offset[cnt] = malloc(sizeof(int32_t));
+		if (!pl_gui_capture_offset[cnt]) {
 			return -ENOMEM;
 		}
 
@@ -1369,13 +1665,13 @@ int32_t pl_gui_create_capture_view(lv_obj_t *parent)
 			return ret;
 		}
 
-		sscanf(ibuf, "%d", pl_gui_offset[cnt]);
+		sscanf(ibuf, "%d", pl_gui_capture_offset[cnt]);
 	}
 
 	return 0;
 
 error_offset:
-	free(pl_gui_chn_info);
+	free(pl_gui_capture_chn_info);
 error_chn_info:
 	free(pl_gui_capture_chn_ser);
 error_capture_chn_ser:
@@ -1385,11 +1681,154 @@ error_capture_chn_ser:
 }
 
 /**
+ * @brief 	Create pocket lab GUI FFT view
+ * @param	parent[in] - pointer to FFT view instance
+ * @return	0 in case of success, negative error code otherwise
+ */
+int32_t pl_gui_create_fft_view(lv_obj_t *parent,
+			       struct pl_gui_init_param *param)
+{
+	int32_t ret;
+	char dropdown_list[100];
+	lv_obj_t *start_btn;
+	lv_obj_t *label;
+
+	/* Get device names */
+	dropdown_list[0] = '\0';
+	ret = pl_gui_get_dev_names(dropdown_list);
+	if (ret) {
+		return ret;
+	}
+
+	/* Device select menu */
+	pl_gui_dd_device_select = lv_dropdown_create(parent);
+	lv_obj_align(pl_gui_dd_device_select, LV_ALIGN_OUT_RIGHT_TOP, 10, 0);
+	lv_dropdown_set_options(pl_gui_dd_device_select, dropdown_list);
+	lv_obj_add_event_cb(pl_gui_dd_device_select, pl_gui_device_select_event_cb,
+			    LV_EVENT_ALL,
+			    NULL);
+
+	/* Get the name of all channels and channel count */
+	dropdown_list[0] = '\0';
+	ret = pl_gui_get_chn_names(dropdown_list, &pl_gui_fft_chn_cnt,
+				   pl_gui_device_indx);
+	if (ret) {
+		return ret;
+	}
+
+	/* Create drop-down to select channel */
+	pl_gui_fft_chn_select = lv_dropdown_create(parent);
+	lv_obj_align_to(pl_gui_fft_chn_select, pl_gui_dd_device_select,
+			LV_ALIGN_OUT_RIGHT_TOP,
+			10, 0);
+	lv_dropdown_set_options(pl_gui_fft_chn_select, dropdown_list);
+	lv_obj_add_event_cb(pl_gui_fft_chn_select, pl_gui_chn_select_event_cb,
+			    LV_EVENT_ALL,
+			    NULL);
+	lv_obj_set_width(pl_gui_fft_chn_select, 150);
+
+	/* Create the FFT Start/Stop Button */
+	start_btn = lv_btn_create(parent);
+	lv_obj_set_size(start_btn, 100, 40);
+	lv_obj_align_to(start_btn, pl_gui_fft_chn_select,
+			LV_ALIGN_OUT_RIGHT_TOP,
+			10, 0);
+	lv_obj_add_event_cb(start_btn, pl_gui_fft_btn_event_cb, LV_EVENT_ALL,
+			    NULL);
+	lv_obj_set_style_bg_color(start_btn, lv_palette_main(LV_PALETTE_GREEN),
+				  LV_PART_MAIN);
+
+	label = lv_label_create(start_btn);
+	lv_label_set_text(label, "Start");
+	lv_obj_center(label);
+
+	/* Create a pl_gui_fft_chart for displaying axises (not for actual data display) */
+	pl_gui_fft_chart = lv_chart_create(parent);
+	lv_obj_set_size(pl_gui_fft_chart, 600, 340);
+	lv_obj_set_pos(pl_gui_fft_chart, 30, 50);
+
+	/* Display labels on x and y axises */
+	lv_chart_set_axis_tick(pl_gui_fft_chart, LV_CHART_AXIS_PRIMARY_Y, 5, 0, 9, 1,
+			       true,
+			       100);
+	lv_chart_set_axis_tick(pl_gui_fft_chart, LV_CHART_AXIS_PRIMARY_X, 5, 0, 9, 1,
+			       true,
+			       20);
+
+	/* Set the x and y axises range (input data range) */
+	lv_chart_set_range(pl_gui_fft_chart, LV_CHART_AXIS_PRIMARY_Y,
+			   -200,
+			   0);
+	lv_chart_set_range(pl_gui_fft_chart, LV_CHART_AXIS_PRIMARY_X, 0,
+			   ADI_FFT_MAX_SAMPLES / 2);
+
+	/* Do not display points on the data */
+#if LV_VERSION_CHECK(9,0,0)
+	lv_obj_set_style_size(pl_gui_fft_chart, 0, 0, LV_PART_INDICATOR);
+#else
+	lv_obj_set_style_size(pl_gui_fft_chart, 0, LV_PART_INDICATOR);
+#endif
+
+	/* Create other FFT parameters */
+	label = lv_label_create(parent);
+	lv_label_set_text(label, "THD:");
+	lv_obj_set_pos(label, 640, 40);
+	thd_label = lv_label_create(parent);
+	lv_label_set_text(thd_label, "");
+	lv_obj_set_pos(thd_label, 640, 60);
+
+	label = lv_label_create(parent);
+	lv_label_set_text(label, "SNR:");
+	lv_obj_set_pos(label, 640, 100);
+	snr_label = lv_label_create(parent);
+	lv_label_set_text(snr_label, "");
+	lv_obj_set_pos(snr_label, 640, 120);
+
+	label = lv_label_create(parent);
+	lv_label_set_text(label, "DR:");
+	lv_obj_set_pos(label, 640, 160);
+	dr_label = lv_label_create(parent);
+	lv_label_set_text(dr_label, "");
+	lv_obj_set_pos(dr_label, 640, 180);
+
+	label = lv_label_create(parent);
+	lv_label_set_text(label, "Fund Power:");
+	lv_obj_set_pos(label, 640, 220);
+	fund_power_label = lv_label_create(parent);
+	lv_label_set_text(fund_power_label, "");
+	lv_obj_set_pos(fund_power_label, 640, 240);
+
+	label = lv_label_create(parent);
+	lv_label_set_text(label, "Fund Frequency:");
+	lv_obj_set_pos(label, 640, 280);
+	fund_freq_label = lv_label_create(parent);
+	lv_label_set_text(fund_freq_label, "");
+	lv_obj_set_pos(fund_freq_label, 640, 300);
+
+	label = lv_label_create(parent);
+	lv_label_set_text(label, "RMS Noise:");
+	lv_obj_set_pos(label, 640, 340);
+	rms_noise_label = lv_label_create(parent);
+	lv_label_set_text(rms_noise_label, "");
+	lv_obj_set_pos(rms_noise_label, 640, 360);
+
+	pl_gui_fft_chn_ser = calloc(pl_gui_fft_chn_cnt, sizeof(lv_obj_t));
+	if (!pl_gui_capture_chn_ser) {
+		return -ENOMEM;
+	}
+
+	/* Initialize the FFT parameters */
+	return adi_fft_init(param->device_params->fft_params, &pl_gui_fft_proc,
+			    &pl_gui_fft_meas);
+}
+
+/**
  * @brief 	Create pocket lab GUI about view
  * @param	parent[in] - pointer to about view instance
  * @return	0 in case of success, negative error code otherwise
  */
-int32_t pl_gui_create_about_view(lv_obj_t *parent)
+int32_t pl_gui_create_about_view(lv_obj_t *parent,
+				 struct pl_gui_init_param *param)
 {
 	lv_obj_t *obj;
 	lv_obj_t *label;
@@ -1479,7 +1918,7 @@ static int32_t pl_gui_create_views(struct pl_gui_desc **desc,
 	for (cnt = 0; cnt < nb_of_views; cnt++) {
 		gui_desc[cnt].view_obj = lv_tabview_add_tab(tabview,
 					 param->views[cnt].view_name);
-		param->views[cnt].create_view(gui_desc[cnt].view_obj);
+		param->views[cnt].create_view(gui_desc[cnt].view_obj, param);
 	}
 
 	/* Add content to the tab views */
@@ -1516,6 +1955,14 @@ int32_t pl_gui_init(struct pl_gui_desc **desc,
 	if (ret) {
 		return ret;
 	}
+
+	/* Save device specific callbacks called into application layer */
+	data_to_volt_without_vref =
+		param->device_params->fft_params->convert_data_to_volt_without_vref;
+	data_to_volt_wrt_vref =
+		param->device_params->fft_params->convert_data_to_volt_wrt_vref;
+	code_to_straight_binary =
+		param->device_params->fft_params->convert_code_to_straight_binary;
 
 	return 0;
 }

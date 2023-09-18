@@ -87,7 +87,7 @@ int32_t pl_gui_event_read(uint8_t *buf, uint32_t len)
 	}
 
 	/* Wait until capture event is triggered */
-	if (!pl_gui_is_capture_running()) {
+	if (!pl_gui_is_capture_running() && !pl_gui_is_fft_running()) {
 		if (pl_gui_cur_capture_state == PL_GUI_START_CAPTURE) {
 			/* Form end capture command if capture was active previously */
 			sprintf(pl_gui_cmd_str, "CLOSE iio:device%d\r\n", dev_indx);
@@ -166,7 +166,7 @@ int32_t pl_gui_event_write(uint8_t *buf, uint32_t len)
 	pl_gui_cmd_formed = false;
 	pl_gui_cmd_str_indx = 0;
 
-	if (!buf || !pl_gui_is_capture_running()) {
+	if (!buf || (!pl_gui_is_capture_running() && !pl_gui_is_fft_running())) {
 		pl_gui_cur_capture_state = PL_GUI_PREPARE_CAPTURE;
 		return len;
 	}

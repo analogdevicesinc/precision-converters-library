@@ -45,9 +45,9 @@
 	.create_view = &pl_gui_create_capture_view\
 }
 
-#define PL_GUI_ADD_FFT_DEF_VIEW {\
-	.view_name = "FFT", \
-	.create_view = &pl_gui_create_fft_view\
+#define PL_GUI_ADD_ANALYSIS_DEF_VIEW {\
+	.view_name = "Analysis", \
+	.create_view = &pl_gui_create_analysis_view\
 }
 
 #define PL_GUI_ADD_ABOUT_DEF_VIEW {\
@@ -107,7 +107,7 @@ int32_t pl_gui_create_dmm_view(lv_obj_t* parent,
 			       struct pl_gui_init_param *param);
 int32_t pl_gui_create_capture_view(lv_obj_t* parent,
 				   struct pl_gui_init_param *param);
-int32_t pl_gui_create_fft_view(lv_obj_t* parent,
+int32_t pl_gui_create_analysis_view(lv_obj_t* parent,
 			       struct pl_gui_init_param *param);
 int32_t pl_gui_create_about_view(lv_obj_t* parent,
 				 struct pl_gui_init_param *param);

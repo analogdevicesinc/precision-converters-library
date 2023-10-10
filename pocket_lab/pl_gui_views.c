@@ -1681,11 +1681,11 @@ error_capture_chn_ser:
 }
 
 /**
- * @brief 	Create pocket lab GUI FFT view
- * @param	parent[in] - pointer to FFT view instance
+ * @brief 	Create pocket lab GUI analysis view
+ * @param	parent[in] - pointer to analysis view instance
  * @return	0 in case of success, negative error code otherwise
  */
-int32_t pl_gui_create_fft_view(lv_obj_t *parent,
+int32_t pl_gui_create_analysis_view(lv_obj_t *parent,
 			       struct pl_gui_init_param *param)
 {
 	int32_t ret;

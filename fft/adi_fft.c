@@ -38,7 +38,7 @@
 /******************************************************************************/
 
 /* Instance for the floating-point CFFT/CIFFT */
-static arm_cfft_radix4_instance_f32 cfft_instance;
+static arm_cfft_instance_f32 cfft_instance;
 
 /******************************************************************************/
 /************************ Functions Definitions *******************************/
@@ -120,7 +120,7 @@ int adi_fft_init(struct adi_fft_init_params *param,
 
 	*fft_meas = fft_meas_init;
 
-	return arm_cfft_radix4_init_f32(&cfft_instance, param->samples_count, 0, 1);
+	return arm_cfft_init_f32(&cfft_instance, fft_proc_init->fft_length);
 }
 
 /**
@@ -139,7 +139,7 @@ int adi_fft_update_params(struct adi_fft_init_params *param,
 	fft_proc->sample_rate = param->sample_rate;
 	fft_proc->vref = param->vref;
 
-	return arm_cfft_radix4_init_f32(&cfft_instance, param->samples_count, 0, 1);
+	return arm_cfft_init_f32(&cfft_instance, fft_proc->fft_length);
 }
 
 /**
@@ -170,7 +170,7 @@ static int adi_fft_windowing(struct adi_fft_processing *fft_proc,
 	if (!sum || !fft_proc)
 		return -EINVAL;
 
-	for (cnt = 0; cnt < fft_proc->fft_length * 4; cnt+=2) {
+	for (cnt = 0; cnt < fft_proc->fft_length * 2; cnt+=2) {
 		switch (fft_proc->window) {
 		case BLACKMAN_HARRIS_7TERM:
 			if (fft_proc->fft_length <= 2048)
@@ -592,8 +592,9 @@ int adi_fft_perform(struct adi_fft_processing *fft_proc,
 	if (ret)
 		return ret;
 
+	/* Convert codes without DC offset to "volts" without respect to Vref voltage */
 	sample_cnt = 0;
-	for (cnt = 0; cnt < fft_proc->fft_length * 4; cnt+=2) {
+	for (cnt = 0; cnt < fft_proc->fft_length * 2; cnt+=2) {
 		/* Real part */
 		fft_proc->fft_input[cnt] = fft_proc->cnv_data_to_volt_without_vref(
 						   fft_proc->input_data[sample_cnt], 0);
@@ -610,7 +611,7 @@ int adi_fft_perform(struct adi_fft_processing *fft_proc,
 		return ret;
 
 	/* Perform the FFT through CMSIS-DSP support libraries */
-	arm_cfft_radix4_f32(&cfft_instance, fft_proc->fft_input);
+	arm_cfft_f32(&cfft_instance, fft_proc->fft_input, 0, 1);
 
 	/* Transform from complex FFT to magnitude */
 	arm_cmplx_mag_f32(fft_proc->fft_input, fft_proc->fft_magnitude,

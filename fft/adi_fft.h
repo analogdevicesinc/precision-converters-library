@@ -94,7 +94,7 @@ struct adi_fft_processing {
 	/* FFT effective gain */
 	float fft_dB[ADI_FFT_MAX_SAMPLES / 2];
 	/* Maximum length of FFT input array supporred - Real + Imaginary components */
-	float fft_input[ADI_FFT_MAX_SAMPLES * 2];
+	float fft_input[ADI_FFT_MAX_SAMPLES];
 	/* FFT bins excluding DC, fundamental and Harmonics */
 	float noise_bins[ADI_FFT_MAX_SAMPLES / 2];
 	/* FFT window type */

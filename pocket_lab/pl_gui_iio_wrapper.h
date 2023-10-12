@@ -37,22 +37,18 @@ int32_t pl_gui_get_chn_unit(char *chn_unit, uint32_t chn_indx,
 int32_t pl_gui_get_global_attr_names(char *attr_names, uint32_t dev_indx);
 int32_t pl_gui_get_chn_attr_names(char *attr_names, uint32_t chn_indx,
 				  uint32_t dev_indx);
-int32_t pl_gui_scan_global_attr_avail_options(const char *attr_name,
+int32_t pl_gui_get_global_attr_avail_options(const char *attr_name,
 		char *attr_val, uint32_t dev_indx);
-int32_t pl_gui_scan_chn_attr_avail_options(const char *attr_name,
+int32_t pl_gui_get_chn_attr_avail_options(const char *attr_name,
 		char *attr_val, uint32_t chn_indx, uint32_t dev_indx);
-int32_t pl_gui_get_dev_attr_index(const char *attr_name, uint32_t *attr_indx,
-				  uint32_t dev_indx);
-int32_t pl_gui_get_chn_attr_index(const char *attr_name, uint32_t *attr_indx,
-				  uint32_t chn_indx, uint32_t dev_indx);
 int32_t pl_gui_read_global_attr(const char *attr_name, char *attr_val,
-				uint32_t attr_indx, uint32_t dev_indx);
-int32_t pl_gui_read_chn_attr(char *attr_val, uint32_t attr_indx,
+				uint32_t dev_indx);
+int32_t pl_gui_read_chn_attr(char *attr_name, char *attr_val,
 			     uint32_t chn_indx, uint32_t dev_indx);
 int32_t pl_gui_write_global_attr(const char *attr_name, char *attr_val,
-				 uint32_t attr_indx, uint32_t dev_indx);
+				 uint32_t dev_indx);
 int32_t pl_gui_write_chn_attr(const char *attr_name, char *attr_val,
-			      uint32_t attr_indx, uint32_t chn_indx, uint32_t dev_indx);
+			      uint32_t chn_indx, uint32_t dev_indx);
 int32_t pl_gui_read_reg(uint32_t addr, uint32_t *data, uint32_t dev_indx);
 int32_t pl_gui_write_reg(uint32_t addr, uint32_t data, uint32_t dev_indx);
 int32_t pl_gui_get_dmm_reading(char *val, uint32_t chn_indx, uint32_t dev_indx);

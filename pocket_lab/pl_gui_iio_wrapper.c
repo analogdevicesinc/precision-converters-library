@@ -225,12 +225,12 @@ int32_t pl_gui_get_chn_attr_names(char *attr_names, uint32_t chn_indx,
  * @param	dev_indx[in] - Current device index
  * @return	0 in case of success, negative error code otherwise
  */
-int32_t pl_gui_scan_global_attr_avail_options(const char *attr_name,
+int32_t pl_gui_get_global_attr_avail_options(const char *attr_name,
 		char *attr_val, uint32_t dev_indx)
 {
 	struct iio_device *iio_dev;
 	struct iio_ch_info chn_info;
-	char buf[50];
+	char buf[100];
 	uint32_t attr_indx;
 	bool found = false;
 
@@ -270,12 +270,12 @@ int32_t pl_gui_scan_global_attr_avail_options(const char *attr_name,
  * @param	dev_indx[in] - Current device index
  * @return	0 in case of success, negative error code otherwise
  */
-int32_t pl_gui_scan_chn_attr_avail_options(const char *attr_name,
+int32_t pl_gui_get_chn_attr_avail_options(const char *attr_name,
 		char *attr_val, uint32_t chn_indx, uint32_t dev_indx)
 {
 	struct iio_device *iio_dev;
 	struct iio_ch_info chn_info;
-	char buf[50];
+	char buf[100];
 	uint32_t attr_indx;
 	bool found = false;
 
@@ -312,94 +312,18 @@ int32_t pl_gui_scan_chn_attr_avail_options(const char *attr_name,
 }
 
 /**
- * @brief 	Get device attribute index from the attributes list array
- * @param	attr_name[in] - Attribute name
- * @param	attr_indx[in,out] - Attribute index
- * @param	dev_indx[in] - Current device index
- * @return	0 in case of success, negative error code otherwise
- */
-int32_t pl_gui_get_dev_attr_index(const char *attr_name, uint32_t *attr_indx,
-				  uint32_t dev_indx)
-{
-	struct iio_device *iio_dev;
-	uint8_t indx;
-	bool found = false;
-
-	if (!pl_gui_iio_init_params || !attr_name || !attr_indx
-	    || (dev_indx >= pl_gui_iio_init_params->nb_devs)) {
-		return -EINVAL;
-	}
-
-	/* Get IIO channel names and store into string array */
-	iio_dev = pl_gui_iio_init_params->devs[dev_indx].dev_descriptor;
-	for (indx = 0; iio_dev->attributes[indx].name;
-	     indx++) {
-		if (strstr(iio_dev->attributes[indx].name, attr_name)) {
-			*attr_indx = indx;
-			found = true;
-			break;
-		}
-	}
-
-	if (!found) {
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
-/**
- * @brief 	Get channel attribute index from the attributes list array
- * @param	attr_name[in] - Attribute name
- * @param	attr_indx[in,out] - Attribute index
- * @param	chn_indx[in] - Current channel index
- * @param	dev_indx[in] - Current device index
- * @return	0 in case of success, negative error code otherwise
- */
-int32_t pl_gui_get_chn_attr_index(const char *attr_name, uint32_t *attr_indx,
-				  uint32_t chn_indx, uint32_t dev_indx)
-{
-	struct iio_device *iio_dev;
-	uint8_t indx;
-	bool found = false;
-
-	if (!pl_gui_iio_init_params || !attr_name || !attr_indx
-	    || (chn_indx >= pl_gui_iio_init_params->devs[dev_indx].dev_descriptor->num_ch)
-	    || (dev_indx >= pl_gui_iio_init_params->nb_devs)) {
-		return -EINVAL;
-	}
-
-	/* Get IIO channel names and store into string array */
-	iio_dev = pl_gui_iio_init_params->devs[dev_indx].dev_descriptor;
-	for (indx = 0; iio_dev->channels[indx].attributes[indx].name;
-	     indx++) {
-		if (strstr(iio_dev->channels[indx].attributes[indx].name, attr_name)) {
-			*attr_indx = indx;
-			found = true;
-			break;
-		}
-	}
-
-	if (!found) {
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
-/**
  * @brief 	Read global attr value
  * @param	attr_name[in] - Attribute name
  * @param	attr_val[in,out] - Attribute value
- * @param	attr_indx[in] - Current attribute index
  * @param	dev_indx[in] - Current device index
  * @return	0 in case of success, negative error code otherwise
  */
 int32_t pl_gui_read_global_attr(const char *attr_name, char *attr_val,
-				uint32_t attr_indx, uint32_t dev_indx)
+				uint32_t dev_indx)
 {
 	struct iio_device *iio_dev;
 	struct iio_ch_info chn_info;
+	uint32_t attr_indx;
 	char buf[50];
 
 	if (!pl_gui_iio_init_params || !attr_name || !attr_val
@@ -407,8 +331,16 @@ int32_t pl_gui_read_global_attr(const char *attr_name, char *attr_val,
 		return -EINVAL;
 	}
 
-	/* Get IIO channel names and store into string array */
+	/* Find attribute index from attributes list array */
 	iio_dev = pl_gui_iio_init_params->devs[dev_indx].dev_descriptor;
+	for (attr_indx = 0; iio_dev->attributes[attr_indx].name;
+	     attr_indx++) {
+		if (!strcmp(iio_dev->attributes[attr_indx].name, attr_name)) {
+			break;
+		}
+	}
+
+	/* Read the attribute value */
 	iio_dev->attributes[attr_indx].show(pl_gui_iio_init_params->devs[dev_indx].dev,
 					    buf,
 					    sizeof(buf),
@@ -421,20 +353,21 @@ int32_t pl_gui_read_global_attr(const char *attr_name, char *attr_val,
 
 /**
  * @brief 	Read channel attr value
+ * @param	attr_name[in] - Attribute name
  * @param	attr_val[in,out] - Attribute value
- * @param	attr_indx[in] - Current attribute index
  * @param	chn_indx[in] - Current channel index
  * @param	dev_indx[in] - Current device index
  * @return	0 in case of success, negative error code otherwise
  */
-int32_t pl_gui_read_chn_attr(char *attr_val, uint32_t attr_indx,
+int32_t pl_gui_read_chn_attr(char *attr_name, char *attr_val,
 			     uint32_t chn_indx, uint32_t dev_indx)
 {
 	struct iio_device *iio_dev;
 	struct iio_ch_info chn_info;
+	uint32_t attr_indx;
 	char buf[50];
 
-	if (!pl_gui_iio_init_params || !attr_val
+	if (!pl_gui_iio_init_params || !attr_name || !attr_val
 	    || (dev_indx >= pl_gui_iio_init_params->nb_devs)
 	    || (chn_indx >=
 		pl_gui_iio_init_params->devs[dev_indx].dev_descriptor->num_ch)) {
@@ -443,8 +376,17 @@ int32_t pl_gui_read_chn_attr(char *attr_val, uint32_t attr_indx,
 
 	chn_info.ch_num = chn_indx;
 
-	/* Get IIO channel names and store into string array */
+	/* Find attribute index from attributes list array */
 	iio_dev = pl_gui_iio_init_params->devs[dev_indx].dev_descriptor;
+	for (attr_indx = 0; iio_dev->channels[chn_indx].attributes[attr_indx].name;
+	     attr_indx++) {
+		if (!strcmp(iio_dev->channels[chn_indx].attributes[attr_indx].name,
+			    attr_name)) {
+			break;
+		}
+	}
+
+	/* Read channel attribute */
 	iio_dev->channels[chn_indx].attributes[attr_indx].show(
 		pl_gui_iio_init_params->devs[dev_indx].dev,
 		buf, sizeof(buf), &chn_info,
@@ -459,15 +401,15 @@ int32_t pl_gui_read_chn_attr(char *attr_val, uint32_t attr_indx,
  * @brief 	Write global attr value
  * @param	attr_names[in] - Attribute name
  * @param	attr_val[in] - Attribute value
- * @param	attr_indx[in] - Current attribute index
  * @param	dev_indx[in] - Current device index
  * @return	0 in case of success, negative error code otherwise
  */
 int32_t pl_gui_write_global_attr(const char *attr_name, char *attr_val,
-				 uint32_t attr_indx, uint32_t dev_indx)
+				 uint32_t dev_indx)
 {
 	struct iio_device *iio_dev;
 	struct iio_ch_info chn_info;
+	uint32_t attr_indx;
 	char buf[50];
 
 	if (!pl_gui_iio_init_params || !attr_name || !attr_val
@@ -476,10 +418,18 @@ int32_t pl_gui_write_global_attr(const char *attr_name, char *attr_val,
 	}
 
 	strcpy(buf, attr_val);
-	strcat(buf, "\n\0");
+	strcat(buf, "\0");
 
-	/* Get IIO channel names and store into string array */
+	/* Find attribute index from attributes list array */
 	iio_dev = pl_gui_iio_init_params->devs[dev_indx].dev_descriptor;
+	for (attr_indx = 0; iio_dev->attributes[attr_indx].name;
+	     attr_indx++) {
+		if (!strcmp(iio_dev->attributes[attr_indx].name, attr_name)) {
+			break;
+		}
+	}
+
+	/* Write attribute value */
 	iio_dev->attributes[attr_indx].store(pl_gui_iio_init_params->devs[dev_indx].dev,
 					     buf,
 					     strlen(buf),
@@ -492,16 +442,16 @@ int32_t pl_gui_write_global_attr(const char *attr_name, char *attr_val,
  * @brief 	Write channel attr value
  * @param	attr_name[in] - Attribute name
  * @param	attr_val[in] - Attribute value
- * @param	attr_indx[in] - Current attribute index
  * @param	chn_indx[in] - Current channel index
  * @param	dev_indx[in] - Current device index
  * @return	0 in case of success, negative error code otherwise
  */
 int32_t pl_gui_write_chn_attr(const char *attr_name, char *attr_val,
-			      uint32_t attr_indx, uint32_t chn_indx, uint32_t dev_indx)
+			      uint32_t chn_indx, uint32_t dev_indx)
 {
 	struct iio_device *iio_dev;
 	struct iio_ch_info chn_info;
+	uint32_t attr_indx;
 	char buf[50];
 
 	if (!pl_gui_iio_init_params || !attr_name || !attr_val
@@ -513,10 +463,19 @@ int32_t pl_gui_write_chn_attr(const char *attr_name, char *attr_val,
 
 	chn_info.ch_num = chn_indx;
 	strcpy(buf, attr_val);
-	strcat(buf, "\n\0");
+	strcat(buf, "\0");
 
-	/* Get IIO channel names and store into string array */
+	/* Find attribute index from attributes list array */
 	iio_dev = pl_gui_iio_init_params->devs[dev_indx].dev_descriptor;
+	for (attr_indx = 0; iio_dev->channels[chn_indx].attributes[attr_indx].name;
+	     attr_indx++) {
+		if (!strcmp(iio_dev->channels[chn_indx].attributes[attr_indx].name,
+			    attr_name)) {
+			break;
+		}
+	}
+
+	/* Write attribute value */
 	iio_dev->channels[chn_indx].attributes[attr_indx].show(
 		pl_gui_iio_init_params->devs[dev_indx].dev,
 		buf, strlen(buf), &chn_info,

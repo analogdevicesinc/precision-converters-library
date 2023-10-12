@@ -581,11 +581,11 @@ const LV_ATTRIBUTE_MEM_ALIGN LV_ATTRIBUTE_LARGE_CONST LV_ATTRIBUTE_IMG_ADI_LOGO 
 };
 
 const lv_img_dsc_t adi_logo = {
-  .header.cf = LV_IMG_CF_TRUE_COLOR,
+  .header.cf = LV_COLOR_FORMAT_RGB565,
   .header.always_zero = 0,
   .header.reserved = 0,
   .header.w = 250,
   .header.h = 136,
-  .data_size = 34000 * LV_COLOR_SIZE / 8,
+  .data_size = 34000 * LV_COLOR_DEPTH / 8,
   .data = adi_logo_map,
 };

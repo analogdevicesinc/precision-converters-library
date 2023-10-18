@@ -64,7 +64,7 @@ int32_t pl_gui_save_dev_param_desc(struct iio_init_param *param)
 int32_t pl_gui_get_dev_names(char *dev_names)
 {
 	uint32_t cnt;
-	char temp[50];
+	char temp[100];
 
 	if (!dev_names || !pl_gui_iio_init_params) {
 		return -EINVAL;
@@ -91,7 +91,7 @@ int32_t pl_gui_get_chn_names(char *chn_names, uint32_t *nb_of_chn,
 {
 	struct iio_device *iio_dev;
 	uint32_t chn_indx;
-	char temp[50];
+	char temp[100];
 
 	if (!pl_gui_iio_init_params || !chn_names || !nb_of_chn
 	    || (dev_indx >= pl_gui_iio_init_params->nb_devs)) {
@@ -166,7 +166,7 @@ int32_t pl_gui_get_global_attr_names(char *attr_names, uint32_t dev_indx)
 {
 	struct iio_device *iio_dev;
 	uint32_t cnt;
-	char temp[50];
+	char temp[100];
 
 	if (!pl_gui_iio_init_params || !attr_names
 	    || (dev_indx >= pl_gui_iio_init_params->nb_devs)) {
@@ -197,7 +197,7 @@ int32_t pl_gui_get_chn_attr_names(char *attr_names, uint32_t chn_indx,
 {
 	struct iio_device *iio_dev;
 	uint32_t cnt;
-	char temp[50];
+	char temp[100];
 
 	if (!pl_gui_iio_init_params || !attr_names
 	    || (dev_indx >= pl_gui_iio_init_params->nb_devs)
@@ -286,6 +286,8 @@ int32_t pl_gui_get_chn_attr_avail_options(const char *attr_name,
 		return -EINVAL;
 	}
 
+	chn_info.ch_num = chn_indx;
+
 	/* Get IIO channel names and store into string array */
 	iio_dev = pl_gui_iio_init_params->devs[dev_indx].dev_descriptor;
 	for (attr_indx = 0; iio_dev->channels[chn_indx].attributes[attr_indx].name;
@@ -324,7 +326,7 @@ int32_t pl_gui_read_global_attr(const char *attr_name, char *attr_val,
 	struct iio_device *iio_dev;
 	struct iio_ch_info chn_info = { 0 };
 	uint32_t attr_indx;
-	char buf[50];
+	char buf[100];
 
 	if (!pl_gui_iio_init_params || !attr_name || !attr_val
 	    || (dev_indx >= pl_gui_iio_init_params->nb_devs)) {
@@ -365,7 +367,7 @@ int32_t pl_gui_read_chn_attr(char *attr_name, char *attr_val,
 	struct iio_device *iio_dev;
 	struct iio_ch_info chn_info = { 0 };
 	uint32_t attr_indx;
-	char buf[50];
+	char buf[100];
 
 	if (!pl_gui_iio_init_params || !attr_name || !attr_val
 	    || (dev_indx >= pl_gui_iio_init_params->nb_devs)
@@ -410,7 +412,7 @@ int32_t pl_gui_write_global_attr(const char *attr_name, char *attr_val,
 	struct iio_device *iio_dev;
 	struct iio_ch_info chn_info = { 0 };
 	uint32_t attr_indx;
-	char buf[50];
+	char buf[100];
 
 	if (!pl_gui_iio_init_params || !attr_name || !attr_val
 	    || (dev_indx >= pl_gui_iio_init_params->nb_devs)) {
@@ -452,7 +454,7 @@ int32_t pl_gui_write_chn_attr(const char *attr_name, char *attr_val,
 	struct iio_device *iio_dev;
 	struct iio_ch_info chn_info = { 0 };
 	uint32_t attr_indx;
-	char buf[50];
+	char buf[100];
 
 	if (!pl_gui_iio_init_params || !attr_name || !attr_val
 	    || (dev_indx >= pl_gui_iio_init_params->nb_devs)
@@ -539,7 +541,7 @@ int32_t pl_gui_get_dmm_reading(char *val, uint32_t chn_indx, uint32_t dev_indx)
 {
 	struct iio_device *iio_dev;
 	struct iio_ch_info chn_info = { 0 };
-	char buf[50];
+	char buf[100];
 	int32_t offset = 0;
 	uint32_t raw = 0;
 	uint32_t attr_indx;

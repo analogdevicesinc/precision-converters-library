@@ -25,8 +25,10 @@
 /************************ Macros/Constants ************************************/
 /******************************************************************************/
 
-/* Maximum number of samples used for FFT analysis (<=4096) */
-#define ADI_FFT_MAX_SAMPLES		4096
+/* Maximum number of default samples used for FFT analysis (<=2048) */
+#if !defined(ADI_FFT_MAX_SAMPLES)
+#define ADI_FFT_MAX_SAMPLES		2048
+#endif
 
 /******************************************************************************/
 /************************ Public Declarations *********************************/
@@ -83,10 +85,6 @@ struct adi_fft_processing {
 	float bin_width;
 	/* Input data (unformatted/straight binary for ADCs) */
 	int32_t input_data[ADI_FFT_MAX_SAMPLES];
-	/* Codes shifted up by ZERO SCALE */
-	int32_t zero_scale_codes[ADI_FFT_MAX_SAMPLES];
-	/* Voltage equivalent to input data */
-	float voltage[ADI_FFT_MAX_SAMPLES];
 	/* Maximum length of FFT magnitude */
 	float fft_magnitude[ADI_FFT_MAX_SAMPLES / 2];
 	/* Magnitude with windowing correction */
@@ -157,8 +155,8 @@ struct adi_fft_measurements {
 };
 
 int adi_fft_init(struct adi_fft_init_params *param,
-		 struct adi_fft_processing **fft_proc,
-		 struct adi_fft_measurements **fft_meas);
+		 struct adi_fft_processing *fft_proc,
+		 struct adi_fft_measurements *fft_meas);
 int adi_fft_update_params(struct adi_fft_init_params *param,
 			  struct adi_fft_processing *fft_proc);
 int adi_fft_perform(struct adi_fft_processing *fft_proc,

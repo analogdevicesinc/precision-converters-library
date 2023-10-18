@@ -123,7 +123,6 @@ int32_t pl_gui_event_read(uint8_t *buf, uint32_t len)
 					cnt++;
 				}
 
-				/* Get total bytes based on the fixed samples count */
 				pl_gui_nb_data_bytes *= get_data_samples_count();
 
 				sprintf(pl_gui_cmd_str, "OPEN iio:device%d %d %08x\r\n",

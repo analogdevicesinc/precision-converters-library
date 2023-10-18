@@ -217,7 +217,7 @@ uint32_t pl_gui_get_active_device_index(void)
 static void pl_gui_read_and_display_attr(void)
 {
 	int32_t ret;
-	char ibuf[50], obuf[100];
+	char ibuf[100], obuf[100];
 	uint32_t chn_pos;
 
 	/* Read channel type */
@@ -293,7 +293,7 @@ static void pl_gui_read_and_display_attr(void)
 static void pl_gui_update_and_readback_attr(void)
 {
 	int32_t ret;
-	char ibuf[50];
+	char ibuf[100];
 	uint32_t chn_pos;
 	const char *text;
 
@@ -349,7 +349,7 @@ static void pl_gui_update_and_readback_attr(void)
 static void pl_gui_read_and_display_reg_val(uint32_t reg_addr)
 {
 	uint32_t reg_data = 0;
-	char ibuf[50];
+	char ibuf[100];
 
 	/* Save register address value into it's text area */
 	ibuf[0] = '\0';
@@ -387,7 +387,7 @@ void pl_gui_perform_dmm_read(void)
 	int32_t ret;
 	static uint32_t read_cntr;
 	uint32_t cnt;
-	char ibuf[50];
+	char ibuf[100];
 
 	read_cntr++;
 	if (read_cntr > PL_GUI_DMM_READ_CNT) {
@@ -430,7 +430,7 @@ static void pl_gui_rescale_data(int32_t *data)
  */
 void pl_gui_display_captured_data(uint8_t *buf, uint32_t rec_bytes)
 {
-	char obuf[50];
+	char obuf[100];
 	uint32_t chn;
 	uint32_t indx = 0;
 	uint32_t storage_bytes;
@@ -691,7 +691,7 @@ static void pl_gui_chn_select_event_cb(lv_event_t *event)
 {
 	lv_event_code_t code = lv_event_get_code(event);
 	lv_obj_t *obj = lv_event_get_target(event);
-	char ibuf[50], obuf[100];
+	char ibuf[100], obuf[100];
 	uint32_t chn_pos;
 
 	if (code == LV_EVENT_VALUE_CHANGED) {
@@ -769,7 +769,7 @@ static void pl_gui_attr_write_btn_event_cb(lv_event_t *event)
  */
 static void pl_gui_attr_avl_select_event_cb(lv_event_t *event)
 {
-	char ibuf[50];
+	char ibuf[100];
 	lv_event_code_t code = lv_event_get_code(event);
 	lv_obj_t *obj = lv_event_get_target(event);
 
@@ -1188,7 +1188,7 @@ int32_t pl_gui_create_attributes_view(lv_obj_t *parent,
 int32_t pl_gui_create_register_view(lv_obj_t *parent,
 				    struct pl_gui_init_param *param)
 {
-	char dropdown_list[50];
+	char dropdown_list[100];
 	int32_t ret;
 
 	/* Get device names */
@@ -1335,7 +1335,7 @@ int32_t pl_gui_create_dmm_view(lv_obj_t *parent,
 	char dropdown_list[100];
 	char chn_name[10];
 	char chn_unit[10];
-	char label_str[30];
+	char label_str[50];
 	uint32_t cnt;
 	uint32_t i=0, j=0;
 	uint32_t row_height;
@@ -1488,8 +1488,8 @@ int32_t pl_gui_create_capture_view(lv_obj_t *parent,
 	uint32_t cnt;
 	char dropdown_list[100];
 	char chn_name[10];
-	char label_str[30];
-	char ibuf[50];
+	char label_str[50];
+	char ibuf[100];
 	uint32_t i = 0, j = 0;
 	lv_obj_t *obj;
 	lv_obj_t *start_btn, *enable_all_btn, *disable_all_btn;

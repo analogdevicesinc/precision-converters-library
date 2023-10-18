@@ -614,7 +614,7 @@ int32_t pl_gui_get_dmm_reading(char *val, uint32_t chn_indx, uint32_t dev_indx)
 		return -EIO;
 	}
 
-	dmm_reading = ((raw + offset) * scale) / 1000.0;
+	dmm_reading = ((int32_t)(raw + offset) * scale) / 1000.0;
 	sprintf(val, "%f", dmm_reading);
 
 	return 0;

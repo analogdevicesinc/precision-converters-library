@@ -229,7 +229,7 @@ int32_t pl_gui_get_global_attr_avail_options(const char *attr_name,
 		char *attr_val, uint32_t dev_indx)
 {
 	struct iio_device *iio_dev;
-	struct iio_ch_info chn_info;
+	struct iio_ch_info chn_info = { 0 };
 	char buf[100];
 	uint32_t attr_indx;
 	bool found = false;
@@ -274,7 +274,7 @@ int32_t pl_gui_get_chn_attr_avail_options(const char *attr_name,
 		char *attr_val, uint32_t chn_indx, uint32_t dev_indx)
 {
 	struct iio_device *iio_dev;
-	struct iio_ch_info chn_info;
+	struct iio_ch_info chn_info = { 0 };
 	char buf[100];
 	uint32_t attr_indx;
 	bool found = false;
@@ -322,7 +322,7 @@ int32_t pl_gui_read_global_attr(const char *attr_name, char *attr_val,
 				uint32_t dev_indx)
 {
 	struct iio_device *iio_dev;
-	struct iio_ch_info chn_info;
+	struct iio_ch_info chn_info = { 0 };
 	uint32_t attr_indx;
 	char buf[50];
 
@@ -363,7 +363,7 @@ int32_t pl_gui_read_chn_attr(char *attr_name, char *attr_val,
 			     uint32_t chn_indx, uint32_t dev_indx)
 {
 	struct iio_device *iio_dev;
-	struct iio_ch_info chn_info;
+	struct iio_ch_info chn_info = { 0 };
 	uint32_t attr_indx;
 	char buf[50];
 
@@ -408,7 +408,7 @@ int32_t pl_gui_write_global_attr(const char *attr_name, char *attr_val,
 				 uint32_t dev_indx)
 {
 	struct iio_device *iio_dev;
-	struct iio_ch_info chn_info;
+	struct iio_ch_info chn_info = { 0 };
 	uint32_t attr_indx;
 	char buf[50];
 
@@ -450,7 +450,7 @@ int32_t pl_gui_write_chn_attr(const char *attr_name, char *attr_val,
 			      uint32_t chn_indx, uint32_t dev_indx)
 {
 	struct iio_device *iio_dev;
-	struct iio_ch_info chn_info;
+	struct iio_ch_info chn_info = { 0 };
 	uint32_t attr_indx;
 	char buf[50];
 
@@ -538,7 +538,7 @@ int32_t pl_gui_write_reg(uint32_t addr, uint32_t data, uint32_t dev_indx)
 int32_t pl_gui_get_dmm_reading(char *val, uint32_t chn_indx, uint32_t dev_indx)
 {
 	struct iio_device *iio_dev;
-	struct iio_ch_info chn_info;
+	struct iio_ch_info chn_info = { 0 };
 	char buf[50];
 	int32_t offset = 0;
 	uint32_t raw = 0;

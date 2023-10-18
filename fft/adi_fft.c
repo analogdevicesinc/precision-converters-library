@@ -52,75 +52,58 @@ static arm_cfft_instance_f32 cfft_instance;
  * @return 0 in case of success, negative error code otherwise
  */
 int adi_fft_init(struct adi_fft_init_params *param,
-		 struct adi_fft_processing **fft_proc,
-		 struct adi_fft_measurements **fft_meas)
+		 struct adi_fft_processing *fft_proc,
+		 struct adi_fft_measurements *fft_meas)
 {
-	struct adi_fft_processing *fft_proc_init;
-	struct adi_fft_measurements *fft_meas_init;
 	uint8_t cnt;
 
 	if (!param || !fft_proc || !fft_meas)
 		return -EINVAL;
 
-	fft_proc_init = (struct adi_fft_processing *)malloc(sizeof(*fft_proc_init));
-	if (!fft_proc_init)
-		return -ENOMEM;
-
-	fft_meas_init = (struct adi_fft_measurements *)malloc(sizeof(
-				*fft_meas_init));
-	if (!fft_meas_init) {
-		free(fft_proc_init);
-		return -ENOMEM;
-	}
-
-	fft_proc_init->vref = param->vref;
-	fft_proc_init->sample_rate = param->sample_rate;
-	fft_proc_init->input_data_full_scale = param->input_data_full_scale;
-	fft_proc_init->input_data_zero_scale = param->input_data_zero_scale;
-	fft_proc_init->cnv_data_to_volt_without_vref =
+	fft_proc->vref = param->vref;
+	fft_proc->sample_rate = param->sample_rate;
+	fft_proc->input_data_full_scale = param->input_data_full_scale;
+	fft_proc->input_data_zero_scale = param->input_data_zero_scale;
+	fft_proc->cnv_data_to_volt_without_vref =
 		param->convert_data_to_volt_without_vref;
-	fft_proc_init->cnv_data_to_volt_wrt_vref = param->convert_data_to_volt_wrt_vref;
-	fft_proc_init->cnv_code_to_straight_binary =
+	fft_proc->cnv_data_to_volt_wrt_vref = param->convert_data_to_volt_wrt_vref;
+	fft_proc->cnv_code_to_straight_binary =
 		param->convert_code_to_straight_binary;
-	fft_proc_init->fft_length = param->samples_count / 2;
-	fft_proc_init->window = BLACKMAN_HARRIS_7TERM;
-	fft_proc_init->bin_width = 0.0;
-	fft_proc_init->fft_done = false;
+	fft_proc->fft_length = param->samples_count / 2;
+	fft_proc->window = BLACKMAN_HARRIS_7TERM;
+	fft_proc->bin_width = 0.0;
+	fft_proc->fft_done = false;
 
-	*fft_proc = fft_proc_init;
-
-	fft_meas_init->fundamental = 0.0;
-	fft_meas_init->pk_spurious_noise = 0.0;
-	fft_meas_init->pk_spurious_freq = 0;
-	fft_meas_init->THD = 0.0;
-	fft_meas_init->SNR = 0.0;
-	fft_meas_init->DR = 0.0;
-	fft_meas_init->SINAD = 0.0;
-	fft_meas_init->SFDR_dbc = 0.0;
-	fft_meas_init->SFDR_dbfs = 0.0;
-	fft_meas_init->ENOB = 0.0;
-	fft_meas_init->RMS_noise = 0.0;
-	fft_meas_init->average_bin_noise = 0.0;
-	fft_meas_init->max_amplitude = 0.0;
-	fft_meas_init->min_amplitude = 0.0;
-	fft_meas_init->pk_pk_amplitude = 0.0;
-	fft_meas_init->DC = 0.0;
-	fft_meas_init->transition_noise = 0.0;
-	fft_meas_init->max_amplitude_LSB = 0;
-	fft_meas_init->min_amplitude_LSB = 0;
-	fft_meas_init->pk_pk_amplitude_LSB = 0;
-	fft_meas_init->DC_LSB = 0;
-	fft_meas_init->transition_noise_LSB = 0.0;
+	fft_meas->fundamental = 0.0;
+	fft_meas->pk_spurious_noise = 0.0;
+	fft_meas->pk_spurious_freq = 0;
+	fft_meas->THD = 0.0;
+	fft_meas->SNR = 0.0;
+	fft_meas->DR = 0.0;
+	fft_meas->SINAD = 0.0;
+	fft_meas->SFDR_dbc = 0.0;
+	fft_meas->SFDR_dbfs = 0.0;
+	fft_meas->ENOB = 0.0;
+	fft_meas->RMS_noise = 0.0;
+	fft_meas->average_bin_noise = 0.0;
+	fft_meas->max_amplitude = 0.0;
+	fft_meas->min_amplitude = 0.0;
+	fft_meas->pk_pk_amplitude = 0.0;
+	fft_meas->DC = 0.0;
+	fft_meas->transition_noise = 0.0;
+	fft_meas->max_amplitude_LSB = 0;
+	fft_meas->min_amplitude_LSB = 0;
+	fft_meas->pk_pk_amplitude_LSB = 0;
+	fft_meas->DC_LSB = 0;
+	fft_meas->transition_noise_LSB = 0.0;
 
 	for (cnt = 0; cnt < ADI_FFT_NUM_OF_TERMS; cnt++) {
-		fft_meas_init->harmonics_mag_dbfs[cnt] = 0.0;
-		fft_meas_init->harmonics_freq[cnt] = 0;
-		fft_meas_init->harmonics_power[cnt] = 0.0;
+		fft_meas->harmonics_mag_dbfs[cnt] = 0.0;
+		fft_meas->harmonics_freq[cnt] = 0;
+		fft_meas->harmonics_power[cnt] = 0.0;
 	}
 
-	*fft_meas = fft_meas_init;
-
-	return arm_cfft_init_f32(&cfft_instance, fft_proc_init->fft_length);
+	return arm_cfft_init_f32(&cfft_instance, fft_proc->fft_length);
 }
 
 /**

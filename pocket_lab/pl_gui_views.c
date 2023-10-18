@@ -136,9 +136,9 @@ static uint32_t pl_gui_capture_chn_cnt;
 bool pl_gui_capture_is_running;
 
 /* FFT processing parameters */
-struct adi_fft_processing *pl_gui_fft_proc;
+struct adi_fft_processing pl_gui_fft_proc;
 /* FFT measurement parameters */
-struct adi_fft_measurements *pl_gui_fft_meas;
+struct adi_fft_measurements pl_gui_fft_meas;
 /* FFT channels select dropdown object */
 static lv_obj_t *pl_gui_fft_chn_select;
 /* FFT channels series for FFT view chart */
@@ -164,6 +164,10 @@ static uint32_t pl_gui_device_indx;
 
 /* Channel scan information */
 static struct scan_type **pl_gui_capture_chn_info;
+
+/* Number of data samples to be captured for fft analysis */
+static uint32_t fft_data_samples;
+static uint32_t fft_length;
 
 /* Local copies of function callbacks to convert input data to voltage */
 static adi_fft_data_to_volt_conv data_to_volt_without_vref;
@@ -457,10 +461,10 @@ void pl_gui_display_captured_data(uint8_t *buf, uint32_t rec_bytes)
 			memcpy((void *)&code, (void *)&buf[indx], storage_bytes);
 
 			/* Convert code to straight binary */
-			pl_gui_fft_proc->input_data[cnt++] = pl_gui_cnv_code_to_straight_binary(code,
-							     chn);
+			pl_gui_fft_proc.input_data[cnt++] = pl_gui_cnv_code_to_straight_binary(code,
+							    chn);
 
-			if (cnt >= ADI_FFT_MAX_SAMPLES) {
+			if (cnt >= fft_data_samples) {
 				break;
 			}
 		} else {
@@ -469,48 +473,61 @@ void pl_gui_display_captured_data(uint8_t *buf, uint32_t rec_bytes)
 
 		indx += storage_bytes;
 
-		if (cnt >= ADI_FFT_MAX_SAMPLES) {
+		if (cnt >= fft_data_samples) {
 			break;
 		}
 	}
 
-	if (pl_gui_fft_is_running && cnt >= ADI_FFT_MAX_SAMPLES) {
+	if (pl_gui_fft_is_running && cnt >= fft_data_samples) {
 		/* Perform FFT measurements */
-		adi_fft_perform(pl_gui_fft_proc, pl_gui_fft_meas);
+		adi_fft_perform(&pl_gui_fft_proc, &pl_gui_fft_meas);
 
 		/* Display FFT results */
-		for (cnt = 0; cnt < ADI_FFT_MAX_SAMPLES / 2; cnt++) {
+		for (cnt = 0; cnt < fft_length; cnt++) {
 			lv_chart_set_next_value(pl_gui_fft_chart,
 						pl_gui_fft_chn_ser,
-						pl_gui_fft_proc->fft_dB[cnt]);
+						pl_gui_fft_proc.fft_dB[cnt]);
 		}
 
 		obuf[0] = '\0';
-		sprintf(obuf, "%.3f dB", pl_gui_fft_meas->THD);
+		sprintf(obuf, "%.3f dB", pl_gui_fft_meas.THD);
 		lv_label_set_text(thd_label, obuf);
 
 		obuf[0] = '\0';
-		sprintf(obuf, "%.3f dB", pl_gui_fft_meas->SNR);
+		sprintf(obuf, "%.3f dB", pl_gui_fft_meas.SNR);
 		lv_label_set_text(snr_label, obuf);
 
 		obuf[0] = '\0';
-		sprintf(obuf, "%.3f dB", pl_gui_fft_meas->DR);
+		sprintf(obuf, "%.3f dB", pl_gui_fft_meas.DR);
 		lv_label_set_text(dr_label, obuf);
 
 		obuf[0] = '\0';
-		sprintf(obuf, "%.3f dBFS", pl_gui_fft_meas->harmonics_mag_dbfs[0]);
+		sprintf(obuf, "%.3f dBFS", pl_gui_fft_meas.harmonics_mag_dbfs[0]);
 		lv_label_set_text(fund_power_label, obuf);
 
 		obuf[0] = '\0';
 		sprintf(obuf, "%.3f Hz",
-			pl_gui_fft_meas->harmonics_freq[0]*pl_gui_fft_proc->bin_width);
+			pl_gui_fft_meas.harmonics_freq[0]*pl_gui_fft_proc.bin_width);
 		lv_label_set_text(fund_freq_label, obuf);
 
 		obuf[0] = '\0';
-		sprintf(obuf, "%.3f uV", pl_gui_fft_meas->RMS_noise * 1000000.0);
+		sprintf(obuf, "%.3f uV", pl_gui_fft_meas.RMS_noise * 1000000.0);
 		lv_label_set_text(rms_noise_label, obuf);
 
 		cnt = 0;
+	}
+}
+
+/**
+ * @brief 	Get the count for data samples to be captured
+ * @return	data samples count
+ */
+uint32_t get_data_samples_count(void)
+{
+	if (pl_gui_fft_is_running) {
+		return fft_data_samples;
+	} else {
+		return PL_GUI_REQ_DATA_SAMPLES;
 	}
 }
 
@@ -1747,7 +1764,7 @@ int32_t pl_gui_create_analysis_view(lv_obj_t *parent,
 			   -200,
 			   0);
 	lv_chart_set_range(pl_gui_fft_chart, LV_CHART_AXIS_PRIMARY_X, 0,
-			   ADI_FFT_MAX_SAMPLES / 2);
+			   fft_length);
 
 	/* Do not display points on the data */
 #if LV_VERSION_CHECK(9,0,0)
@@ -1950,6 +1967,9 @@ int32_t pl_gui_init(struct pl_gui_desc **desc,
 		param->device_params->fft_params->convert_data_to_volt_wrt_vref;
 	code_to_straight_binary =
 		param->device_params->fft_params->convert_code_to_straight_binary;
+
+	fft_data_samples = param->device_params->fft_params->samples_count;
+	fft_length = fft_data_samples / 2;
 
 	return 0;
 }

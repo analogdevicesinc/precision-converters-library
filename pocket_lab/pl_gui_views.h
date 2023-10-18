@@ -108,9 +108,10 @@ int32_t pl_gui_create_dmm_view(lv_obj_t* parent,
 int32_t pl_gui_create_capture_view(lv_obj_t* parent,
 				   struct pl_gui_init_param *param);
 int32_t pl_gui_create_analysis_view(lv_obj_t* parent,
-			       struct pl_gui_init_param *param);
+				    struct pl_gui_init_param *param);
 int32_t pl_gui_create_about_view(lv_obj_t* parent,
 				 struct pl_gui_init_param *param);
+uint32_t get_data_samples_count(void);
 void pl_gui_get_capture_chns_mask(uint32_t *chn_mask);
 void pl_gui_display_captured_data(uint8_t *buf, uint32_t rec_bytes);
 bool pl_gui_is_dmm_running(void);

@@ -117,7 +117,7 @@ static lv_obj_t *pl_gui_dmm_btn_enable_all;
 static lv_obj_t *pl_gui_dmm_btn_disable_all;
 /* DMM channels checkbox object */
 static lv_obj_t **pl_gui_dmm_chn_checkbox;
-/* DMM channels textarea object */
+/* DMM channels text area object */
 static lv_obj_t **pl_gui_dmm_chn_ta;
 /* Channels count from DMM view */
 static uint32_t pl_gui_dmm_chn_cnt;
@@ -1039,11 +1039,14 @@ int32_t pl_gui_create_attributes_view(lv_obj_t *parent,
 {
 	int32_t ret;
 	char dropdown_list[100];
-	lv_obj_t *btn;
+	lv_obj_t *wr_btn;
+	lv_obj_t *rd_btn;
 	uint32_t nb_of_chn;
 
 	/* Create view */
 	lv_obj_t *label = lv_label_create(parent);
+
+	/*** Device names dropdown ***/
 
 	/* Get device names */
 	dropdown_list[0] = '\0';
@@ -1052,17 +1055,20 @@ int32_t pl_gui_create_attributes_view(lv_obj_t *parent,
 		return ret;
 	}
 
-	/* Device select menu */
+	/* Create device select dropdown and insert device names list */
 	lv_label_set_text(label, "Device");
-	lv_obj_align(label, LV_ALIGN_TOP_LEFT, 5, 5);
+	lv_obj_align(label, LV_ALIGN_TOP_LEFT, 5, 20);
 	pl_gui_dd_device_select = lv_dropdown_create(parent);
-	lv_obj_align_to(pl_gui_dd_device_select, label, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+	lv_obj_align_to(pl_gui_dd_device_select, label, LV_ALIGN_OUT_BOTTOM_LEFT, 0,
+			10);
 	lv_dropdown_set_options(pl_gui_dd_device_select, dropdown_list);
 	lv_obj_add_event(pl_gui_dd_device_select, pl_gui_device_select_event_cb,
 			 LV_EVENT_ALL,
 			 NULL);
 
-	/* Global and channels attributes select menu */
+	/*** Global and channels attributes dropdown ***/
+
+	/* Insert 'global' attribute label as first dropdown option */
 	dropdown_list[0] = '\0';
 	strcat(dropdown_list, "global\n");
 
@@ -1072,11 +1078,11 @@ int32_t pl_gui_create_attributes_view(lv_obj_t *parent,
 		return ret;
 	}
 
-	/* Create channel select menu */
+	/* Create channel select dropdown and insert channel names */
 	pl_gui_dd_chan_select = lv_dropdown_create(parent);
 	lv_obj_align_to(pl_gui_dd_chan_select, pl_gui_dd_device_select,
 			LV_ALIGN_OUT_RIGHT_MID,
-			10,
+			20,
 			0);
 	lv_dropdown_set_options(pl_gui_dd_chan_select, dropdown_list);
 	lv_obj_add_event(pl_gui_dd_chan_select, pl_gui_chn_select_event_cb,
@@ -1094,16 +1100,16 @@ int32_t pl_gui_create_attributes_view(lv_obj_t *parent,
 		return ret;
 	}
 
-	/* Attribute select menu */
+	/* Create attribute select dropdown and insert attribute names */
 	pl_gui_dd_attr_select = lv_dropdown_create(parent);
 	lv_obj_align_to(pl_gui_dd_attr_select, pl_gui_dd_chan_select,
 			LV_ALIGN_OUT_RIGHT_TOP,
-			10, 0);
+			20, 0);
 	lv_dropdown_set_options(pl_gui_dd_attr_select, dropdown_list);
 	lv_obj_add_event(pl_gui_dd_attr_select, pl_gui_attr_select_event_cb,
 			 LV_EVENT_ALL,
 			 NULL);
-	lv_obj_set_width(pl_gui_dd_attr_select, 250);
+	lv_obj_set_width(pl_gui_dd_attr_select, 300);
 
 	label = lv_label_create(parent);
 	lv_label_set_text(label, "Attributes");
@@ -1113,8 +1119,8 @@ int32_t pl_gui_create_attributes_view(lv_obj_t *parent,
 	pl_gui_ta_attr_rw_value = lv_textarea_create(parent);
 	lv_textarea_set_one_line(pl_gui_ta_attr_rw_value, true);
 	lv_textarea_set_text(pl_gui_ta_attr_rw_value, "0");
-	lv_textarea_set_max_length(pl_gui_ta_attr_rw_value, 20);
-	lv_obj_set_width(pl_gui_ta_attr_rw_value, 250);
+	lv_textarea_set_max_length(pl_gui_ta_attr_rw_value, 30);
+	lv_obj_set_width(pl_gui_ta_attr_rw_value, 300);
 	lv_obj_align_to(pl_gui_ta_attr_rw_value, pl_gui_dd_attr_select,
 			LV_ALIGN_OUT_BOTTOM_LEFT, 0,
 			20);
@@ -1126,28 +1132,26 @@ int32_t pl_gui_create_attributes_view(lv_obj_t *parent,
 	lv_label_set_text(label, "Read/Write Value ");
 	lv_obj_align_to(label, pl_gui_ta_attr_rw_value, LV_ALIGN_OUT_LEFT_MID, -15, 0);
 
-	btn = lv_btn_create(parent);
-	lv_obj_set_size(btn, 100, 30);
-	lv_obj_align_to(btn, pl_gui_ta_attr_rw_value, LV_ALIGN_OUT_RIGHT_MID, 10, 0);
-
-	label = lv_label_create(btn);
-	lv_label_set_text(label, "Write");
-	lv_obj_center(label);
-
-	lv_obj_add_event(btn, pl_gui_attr_write_btn_event_cb, LV_EVENT_ALL, NULL);
-	lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_GREEN), LV_PART_MAIN);
-
-	btn = lv_btn_create(parent);
-	lv_obj_set_size(btn, 100, 30);
-	lv_obj_align_to(btn, pl_gui_ta_attr_rw_value, LV_ALIGN_OUT_RIGHT_MID, 120, 0);
-
-	label = lv_label_create(btn);
+	rd_btn = lv_btn_create(parent);
+	lv_obj_set_size(rd_btn, 100, 50);
+	lv_obj_align_to(rd_btn, pl_gui_ta_attr_rw_value, LV_ALIGN_OUT_RIGHT_MID, 10, 0);
+	label = lv_label_create(rd_btn);
 	lv_label_set_text(label, "Read");
 	lv_obj_center(label);
+	lv_obj_add_event(rd_btn, pl_gui_attr_read_btn_event_cb, LV_EVENT_ALL, NULL);
+	lv_obj_set_style_bg_color(rd_btn, lv_palette_main(LV_PALETTE_PURPLE),
+				  LV_PART_MAIN);
 
-	lv_obj_add_event(btn, pl_gui_attr_read_btn_event_cb, LV_EVENT_ALL, NULL);
-	lv_obj_set_style_bg_color(btn,
-				  lv_palette_main(LV_PALETTE_PURPLE),
+	wr_btn = lv_btn_create(parent);
+	lv_obj_set_size(wr_btn, 100, 50);
+	lv_obj_align_to(wr_btn, pl_gui_ta_attr_rw_value, LV_ALIGN_OUT_RIGHT_MID, 10,
+			60);
+	label = lv_label_create(wr_btn);
+	lv_label_set_text(label, "Write");
+	lv_obj_center(label);
+	lv_obj_add_event(wr_btn, pl_gui_attr_write_btn_event_cb, LV_EVENT_ALL, NULL);
+	lv_obj_set_style_bg_color(wr_btn,
+				  lv_palette_main(LV_PALETTE_GREEN),
 				  LV_PART_MAIN);
 
 	/* Attribute value write menu (for available/dropdown type attributes) */
@@ -1156,13 +1160,13 @@ int32_t pl_gui_create_attributes_view(lv_obj_t *parent,
 			pl_gui_ta_attr_rw_value,
 			LV_ALIGN_OUT_BOTTOM_LEFT,
 			0,
-			20);
+			70);
 	lv_dropdown_set_options(pl_gui_dd_avail_attr_select, "\n\n\n\n\n\n\n\n\n\n");
 	lv_obj_add_event(pl_gui_dd_avail_attr_select,
 			 pl_gui_attr_avl_select_event_cb,
 			 LV_EVENT_ALL,
 			 NULL);
-	lv_obj_set_width(pl_gui_dd_avail_attr_select, 250);
+	lv_obj_set_width(pl_gui_dd_avail_attr_select, 300);
 
 	label = lv_label_create(parent);
 	lv_label_set_text(label, "available options");
@@ -1198,7 +1202,7 @@ int32_t pl_gui_create_register_view(lv_obj_t *parent,
 		return ret;
 	}
 
-	/* Device select menu */
+	/* Device select dropdown options */
 	pl_gui_dd_device_select = lv_dropdown_create(parent);
 	lv_obj_align(pl_gui_dd_device_select, LV_ALIGN_TOP_MID, 0, 0);
 	lv_dropdown_set_options(pl_gui_dd_device_select, dropdown_list);
@@ -1206,7 +1210,7 @@ int32_t pl_gui_create_register_view(lv_obj_t *parent,
 			 LV_EVENT_ALL,
 			 NULL);
 
-	/* Register Address textarea */
+	/* Register Address text area */
 	pl_gui_ta_reg_address = lv_textarea_create(parent);
 	lv_textarea_set_one_line(pl_gui_ta_reg_address, true);
 	lv_textarea_set_text(pl_gui_ta_reg_address, "0");
@@ -1224,7 +1228,7 @@ int32_t pl_gui_create_register_view(lv_obj_t *parent,
 
 	/* Register address increment/decrement buttons and labels */
 	lv_obj_t *btn = lv_btn_create(parent);
-	lv_obj_set_size(btn, 50, 30);
+	lv_obj_set_size(btn, 90, 50);
 	lv_obj_align_to(btn, pl_gui_ta_reg_address, LV_ALIGN_OUT_RIGHT_MID, 10, 0);
 	label = lv_label_create(btn);
 	lv_label_set_text(label, "-");
@@ -1234,24 +1238,55 @@ int32_t pl_gui_create_register_view(lv_obj_t *parent,
 				  LV_PART_MAIN);
 
 	btn = lv_btn_create(parent);
-	lv_obj_set_size(btn, 50, 30);
-	lv_obj_align_to(btn, pl_gui_ta_reg_address, LV_ALIGN_OUT_RIGHT_MID, 70, 0);
+	lv_obj_set_size(btn, 90, 50);
+	lv_obj_align_to(btn, pl_gui_ta_reg_address, LV_ALIGN_OUT_RIGHT_MID, 110, 0);
 	label = lv_label_create(btn);
 	lv_label_set_text(label, "+");
 	lv_obj_center(label);
 	lv_obj_add_event(btn, pl_gui_reg_btn_event_cb, LV_EVENT_ALL, NULL);
 	lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_BLUE), LV_PART_MAIN);
 
-	/* Register write value textarea */
+	/* Register read value text area */
+	pl_gui_ta_reg_read_value = lv_textarea_create(parent);
+	lv_textarea_set_one_line(pl_gui_ta_reg_read_value, true);
+	lv_textarea_set_text(pl_gui_ta_reg_read_value, "0");
+	lv_obj_clear_flag(pl_gui_ta_reg_read_value, LV_OBJ_FLAG_CLICKABLE);
+	lv_obj_align_to(pl_gui_ta_reg_read_value, pl_gui_ta_reg_address,
+			LV_ALIGN_OUT_BOTTOM_MID, 0,
+			30);
+	lv_obj_add_event(pl_gui_ta_reg_read_value, pl_gui_ta_event_handler,
+			 LV_EVENT_CLICKED,
+			 NULL);
+
+	/* Register read value label */
+	label = lv_label_create(parent);
+	lv_label_set_text(label, "Read Value (hex)");
+	lv_obj_align_to(label, pl_gui_ta_reg_read_value, LV_ALIGN_OUT_LEFT_MID, -10, 0);
+
+	/* Register read value button */
+	btn = lv_btn_create(parent);
+	lv_obj_set_size(btn, 90, 50);
+	lv_obj_align_to(btn, pl_gui_ta_reg_read_value, LV_ALIGN_OUT_RIGHT_MID, 10, 0);
+
+	/* Register read value button */
+	label = lv_label_create(btn);
+	lv_label_set_text(label, "Read");
+	lv_obj_center(label);
+
+	lv_obj_add_event(btn, pl_gui_reg_btn_event_cb, LV_EVENT_ALL, NULL);
+	lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_PURPLE),
+				  LV_PART_MAIN);
+
+	/* Register write value text area */
 	pl_gui_ta_reg_write_value = lv_textarea_create(parent);
 	lv_textarea_set_one_line(pl_gui_ta_reg_write_value, true);
 	lv_textarea_set_text(pl_gui_ta_reg_write_value, "0");
 	lv_textarea_set_accepted_chars(pl_gui_ta_reg_write_value,
 				       "0123456789ABCDEFabcdef");
 	lv_textarea_set_max_length(pl_gui_ta_reg_write_value, 8);
-	lv_obj_align_to(pl_gui_ta_reg_write_value, pl_gui_ta_reg_address,
-			LV_ALIGN_OUT_BOTTOM_MID, 0,
-			20);
+	lv_obj_align_to(pl_gui_ta_reg_write_value, pl_gui_ta_reg_read_value,
+			LV_ALIGN_OUT_BOTTOM_MID,
+			0, 30);
 	lv_obj_add_event(pl_gui_ta_reg_write_value, pl_gui_ta_event_handler,
 			 LV_EVENT_CLICKED,
 			 NULL);
@@ -1264,7 +1299,7 @@ int32_t pl_gui_create_register_view(lv_obj_t *parent,
 
 	/* Register write value button */
 	btn = lv_btn_create(parent);
-	lv_obj_set_size(btn, 100, 30);
+	lv_obj_set_size(btn, 90, 50);
 	lv_obj_align_to(btn, pl_gui_ta_reg_write_value, LV_ALIGN_OUT_RIGHT_MID, 10, 0);
 
 	/* Register write value button label */
@@ -1274,37 +1309,6 @@ int32_t pl_gui_create_register_view(lv_obj_t *parent,
 
 	lv_obj_add_event(btn, pl_gui_reg_btn_event_cb, LV_EVENT_ALL, NULL);
 	lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_GREEN), LV_PART_MAIN);
-
-	/* Register read value textarea */
-	pl_gui_ta_reg_read_value = lv_textarea_create(parent);
-	lv_textarea_set_one_line(pl_gui_ta_reg_read_value, true);
-	lv_textarea_set_text(pl_gui_ta_reg_read_value, "0");
-	lv_obj_clear_flag(pl_gui_ta_reg_read_value, LV_OBJ_FLAG_CLICKABLE);
-	lv_obj_align_to(pl_gui_ta_reg_read_value, pl_gui_ta_reg_write_value,
-			LV_ALIGN_OUT_BOTTOM_MID,
-			0, 20);
-	lv_obj_add_event(pl_gui_ta_reg_read_value, pl_gui_ta_event_handler,
-			 LV_EVENT_CLICKED,
-			 NULL);
-
-	/* Register read value label */
-	label = lv_label_create(parent);
-	lv_label_set_text(label, "Read Value (hex)");
-	lv_obj_align_to(label, pl_gui_ta_reg_read_value, LV_ALIGN_OUT_LEFT_MID, -10, 0);
-
-	/* Register read value button */
-	btn = lv_btn_create(parent);
-	lv_obj_set_size(btn, 100, 30);
-	lv_obj_align_to(btn, pl_gui_ta_reg_read_value, LV_ALIGN_OUT_RIGHT_MID, 10, 0);
-
-	/* Register read value button */
-	label = lv_label_create(btn);
-	lv_label_set_text(label, "Read");
-	lv_obj_center(label);
-
-	lv_obj_add_event(btn, pl_gui_reg_btn_event_cb, LV_EVENT_ALL, NULL);
-	lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_PURPLE),
-				  LV_PART_MAIN);
 
 	/* Callbacks to manage visibilty of the hex keypad */
 	lv_obj_add_event(pl_gui_ta_reg_address, pl_gui_manage_btnmap_kb,
@@ -1358,7 +1362,7 @@ int32_t pl_gui_create_dmm_view(lv_obj_t *parent,
 
 	/* DMM start button */
 	pl_gui_dmm_btn_start = lv_btn_create(parent);
-	lv_obj_set_size(pl_gui_dmm_btn_start, 120, 40);
+	lv_obj_set_size(pl_gui_dmm_btn_start, 120, 50);
 	lv_obj_align_to(pl_gui_dmm_btn_start, pl_gui_dmm_btn_start,
 			LV_ALIGN_OUT_BOTTOM_LEFT, 0,
 			30);
@@ -1375,7 +1379,7 @@ int32_t pl_gui_create_dmm_view(lv_obj_t *parent,
 
 	/* DMM enable all button */
 	pl_gui_dmm_btn_enable_all = lv_btn_create(parent);
-	lv_obj_set_size(pl_gui_dmm_btn_enable_all, 120, 40);
+	lv_obj_set_size(pl_gui_dmm_btn_enable_all, 120, 50);
 	lv_obj_align_to(pl_gui_dmm_btn_enable_all, pl_gui_dmm_btn_start,
 			LV_ALIGN_OUT_BOTTOM_LEFT, 0,
 			30);
@@ -1390,7 +1394,7 @@ int32_t pl_gui_create_dmm_view(lv_obj_t *parent,
 
 	/* DMM disable all button */
 	pl_gui_dmm_btn_disable_all = lv_btn_create(parent);
-	lv_obj_set_size(pl_gui_dmm_btn_disable_all, 120, 40);
+	lv_obj_set_size(pl_gui_dmm_btn_disable_all, 120, 50);
 	lv_obj_align_to(pl_gui_dmm_btn_disable_all, pl_gui_dmm_btn_enable_all,
 			LV_ALIGN_OUT_BOTTOM_LEFT, 0,
 			30);
@@ -1405,8 +1409,8 @@ int32_t pl_gui_create_dmm_view(lv_obj_t *parent,
 
 	/* Create the scrolling view container */
 	lv_obj_t *cont_col = lv_obj_create(parent);
-	lv_obj_set_size(cont_col, 550, 380);
-	lv_obj_align_to(cont_col, pl_gui_dd_device_select, LV_ALIGN_OUT_RIGHT_TOP, 30,
+	lv_obj_set_size(cont_col, 600, 400);
+	lv_obj_align_to(cont_col, pl_gui_dd_device_select, LV_ALIGN_OUT_RIGHT_TOP, 20,
 			0);
 
 	/* Get the name of all channels for selected device */
@@ -1433,7 +1437,7 @@ int32_t pl_gui_create_dmm_view(lv_obj_t *parent,
 		label_str[0] = '\0';
 		chn_unit[0] = '\0';
 		chn_name[0] = '\0';
-		row_height = 50;
+		row_height = 60;
 		j = 0;
 
 		while (dropdown_list[i] != '\n') {
@@ -1446,15 +1450,15 @@ int32_t pl_gui_create_dmm_view(lv_obj_t *parent,
 		obj = lv_checkbox_create(cont_col);
 		sprintf(label_str, "%s", chn_name);
 		lv_checkbox_set_text(obj, label_str);
-		lv_obj_set_pos(obj, 10, cnt * row_height + 20);
+		lv_obj_set_pos(obj, 10, cnt * row_height + 15);
 		pl_gui_dmm_chn_checkbox[cnt] = obj;
 
-		/* DMM channel value textarea */
+		/* DMM channel value text area */
 		obj = lv_textarea_create(cont_col);
 		lv_textarea_set_one_line(obj, true);
 		lv_textarea_set_text(obj, " ");
-		lv_obj_set_size(obj, 150, 35);
-		lv_obj_set_pos(obj, 150, cnt * row_height + 20);
+		lv_obj_set_size(obj, 150, 50);
+		lv_obj_set_pos(obj, 150, cnt * row_height + 10);
 		pl_gui_dmm_chn_ta[cnt] = obj;
 
 		/* Add channel unit string */
@@ -1465,7 +1469,7 @@ int32_t pl_gui_create_dmm_view(lv_obj_t *parent,
 		lv_obj_t *label = lv_label_create(cont_col);
 		sprintf(label_str, "%s", chn_unit);
 		lv_label_set_text(label, label_str);
-		lv_obj_set_pos(label, 320, cnt * row_height + 20);
+		lv_obj_set_pos(label, 320, cnt * row_height + 15);
 	}
 
 	return 0;
@@ -1504,7 +1508,7 @@ int32_t pl_gui_create_capture_view(lv_obj_t *parent,
 
 	/* Device select menu */
 	pl_gui_dd_device_select = lv_dropdown_create(parent);
-	lv_obj_align(pl_gui_dd_device_select, LV_ALIGN_OUT_RIGHT_TOP, 10, 0);
+	lv_obj_align(pl_gui_dd_device_select, LV_ALIGN_OUT_RIGHT_TOP, 0, 0);
 	lv_dropdown_set_options(pl_gui_dd_device_select, dropdown_list);
 	lv_obj_add_event(pl_gui_dd_device_select, pl_gui_device_select_event_cb,
 			 LV_EVENT_ALL,
@@ -1512,7 +1516,7 @@ int32_t pl_gui_create_capture_view(lv_obj_t *parent,
 
 	/* Create the capture Start/Stop Button */
 	start_btn = lv_btn_create(parent);
-	lv_obj_set_size(start_btn, 100, 40);
+	lv_obj_set_size(start_btn, 100, 45);
 	lv_obj_align_to(start_btn, pl_gui_dd_device_select, LV_ALIGN_OUT_RIGHT_TOP, 10,
 			0);
 	lv_obj_add_event(start_btn, pl_gui_capture_btn_event_cb, LV_EVENT_ALL,
@@ -1526,7 +1530,7 @@ int32_t pl_gui_create_capture_view(lv_obj_t *parent,
 
 	/* Create the all channels enable button */
 	enable_all_btn = lv_btn_create(parent);
-	lv_obj_set_size(enable_all_btn, 110, 40);
+	lv_obj_set_size(enable_all_btn, 120, 45);
 	lv_obj_align_to(enable_all_btn, start_btn, LV_ALIGN_RIGHT_MID, 150,
 			0);
 	lv_obj_add_event(enable_all_btn, pl_gui_capture_btn_event_cb, LV_EVENT_ALL,
@@ -1540,7 +1544,7 @@ int32_t pl_gui_create_capture_view(lv_obj_t *parent,
 
 	/* Create the all channels disable button */
 	disable_all_btn = lv_btn_create(parent);
-	lv_obj_set_size(disable_all_btn, 110, 40);
+	lv_obj_set_size(disable_all_btn, 120, 45);
 	lv_obj_align_to(disable_all_btn, enable_all_btn, LV_ALIGN_RIGHT_MID, 150,
 			0);
 	lv_obj_add_event(disable_all_btn, pl_gui_capture_btn_event_cb, LV_EVENT_ALL,
@@ -1554,7 +1558,7 @@ int32_t pl_gui_create_capture_view(lv_obj_t *parent,
 
 	/* Create check boxes to enable display of channels */
 	lv_obj_t *cont_col = lv_obj_create(parent);
-	lv_obj_set_size(cont_col, 130, 340);
+	lv_obj_set_size(cont_col, 125, 340);
 	lv_obj_align_to(cont_col, pl_gui_dd_device_select, LV_ALIGN_OUT_BOTTOM_MID, 0,
 			10);
 	lv_obj_set_flex_flow(cont_col, LV_FLEX_FLOW_COLUMN);
@@ -1853,25 +1857,27 @@ int32_t pl_gui_create_about_view(lv_obj_t *parent,
 
 	label = lv_label_create(parent);
 	lv_label_set_text(label,
-			  "\n\n\n\n"
+			  "\n\n\n\n\n\n"
 			  "Pocket Lab\n"
 			  "A GUI for IIO devices\n\n"
 			  "Pocket Lab is a GUI based embedded\n"
 			  "application, developed for demoing\n"
 			  "and evaluating the IIO devices.\n"
 			  "The application supports device\n"
-			  "configuration, registers r/w, time/freq\n"
-			  "domain data plot, etc");
+			  "configuration, registers r/w,\n"
+			  "time/freq domain data plot, etc");
 	lv_obj_align(label, LV_ALIGN_LEFT_MID, 0, 30);
 
 	label = lv_label_create(parent);
 	lv_label_set_text(label,
-			  "\n\nIndustrial I/O Devices (IIO)\n\n"
+			  "\n\n\n\n\n\n"
+			  "Industrial I/O Devices (IIO)\n\n\n"
 			  "IIO subsytem is intended to provide\n"
-			  "support for devices that in some sense\n"
-			  "are analog to digital and digital to\n"
-			  "analog converters (ADCs and DAcs).");
-	lv_obj_align(label, LV_ALIGN_RIGHT_MID, 0, 30);
+			  "support for devices that in some\n"
+			  "sense are analog to digital and\n"
+			  "digital to analog converters\n"
+			  "(ADCs and DACs).");
+	lv_obj_align(label, LV_ALIGN_RIGHT_MID, 0, 20);
 
 	return 0;
 }

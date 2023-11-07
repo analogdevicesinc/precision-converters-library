@@ -167,7 +167,7 @@ static struct scan_type **pl_gui_capture_chn_info;
 
 /* Number of data samples to be captured for fft analysis */
 static uint32_t fft_data_samples;
-static uint32_t fft_length;
+static uint32_t fft_bins;
 
 /* Local copies of function callbacks to convert input data to voltage */
 static adi_fft_data_to_volt_conv data_to_volt_without_vref;
@@ -483,7 +483,7 @@ void pl_gui_display_captured_data(uint8_t *buf, uint32_t rec_bytes)
 		adi_fft_perform(&pl_gui_fft_proc, &pl_gui_fft_meas);
 
 		/* Display FFT results */
-		for (cnt = 0; cnt < fft_length; cnt++) {
+		for (cnt = 0; cnt < fft_bins; cnt++) {
 			lv_chart_set_next_value(pl_gui_fft_chart,
 						pl_gui_fft_chn_ser,
 						pl_gui_fft_proc.fft_dB[cnt]);
@@ -978,7 +978,7 @@ static void pl_gui_fft_btn_event_cb(lv_event_t *event)
 			pl_gui_fft_chn_ser = lv_chart_add_series(pl_gui_fft_chart,
 					     lv_palette_main(LV_PALETTE_RED),
 					     LV_CHART_AXIS_PRIMARY_Y);
-			lv_chart_set_point_count(pl_gui_fft_chart, 400);
+			lv_chart_set_point_count(pl_gui_fft_chart, fft_bins);
 		}
 		pl_gui_fft_is_running = !pl_gui_fft_is_running;
 	}
@@ -1759,16 +1759,18 @@ int32_t pl_gui_create_analysis_view(lv_obj_t *parent,
 	lv_chart_set_axis_tick(pl_gui_fft_chart, LV_CHART_AXIS_PRIMARY_Y, 5, 0, 9, 1,
 			       true,
 			       100);
-	lv_chart_set_axis_tick(pl_gui_fft_chart, LV_CHART_AXIS_PRIMARY_X, 5, 0, 9, 1,
-			       true,
-			       20);
+	// TODO- Check if scale can be displayed in terms of sampling frequency (Fs)
+	// Range: 0 to Fs/2. Resolution = Fs/FFT length
+	//lv_chart_set_axis_tick(pl_gui_fft_chart, LV_CHART_AXIS_PRIMARY_X, 5, 0, 10, 1,
+	//		       true,
+	//		       20);
 
 	/* Set the x and y axises range (input data range) */
 	lv_chart_set_range(pl_gui_fft_chart, LV_CHART_AXIS_PRIMARY_Y,
 			   -200,
 			   0);
 	lv_chart_set_range(pl_gui_fft_chart, LV_CHART_AXIS_PRIMARY_X, 0,
-			   fft_length);
+			   fft_bins);
 
 	/* Do not display points on the data */
 #if LV_VERSION_CHECK(9,0,0)
@@ -1975,7 +1977,7 @@ int32_t pl_gui_init(struct pl_gui_desc **desc,
 		param->device_params->fft_params->convert_code_to_straight_binary;
 
 	fft_data_samples = param->device_params->fft_params->samples_count;
-	fft_length = fft_data_samples / 2;
+	fft_bins = (fft_data_samples / 2) / 2;
 
 	return 0;
 }

@@ -69,7 +69,7 @@ int adi_fft_init(struct adi_fft_init_params *param,
 	fft_proc->cnv_data_to_volt_wrt_vref = param->convert_data_to_volt_wrt_vref;
 	fft_proc->cnv_code_to_straight_binary =
 		param->convert_code_to_straight_binary;
-	fft_proc->fft_length = param->samples_count / 2;
+	fft_proc->fft_length = param->samples_count;
 	fft_proc->window = BLACKMAN_HARRIS_7TERM;
 	fft_proc->bin_width = 0.0;
 	fft_proc->fft_done = false;
@@ -118,7 +118,7 @@ int adi_fft_update_params(struct adi_fft_init_params *param,
 	if (!param || !fft_proc)
 		return -EINVAL;
 
-	fft_proc->fft_length = param->samples_count / 2;
+	fft_proc->fft_length = param->samples_count;
 	fft_proc->sample_rate = param->sample_rate;
 	fft_proc->vref = param->vref;
 
@@ -211,7 +211,7 @@ static int adi_fft_magnitude_to_db(struct adi_fft_processing *fft_proc,
 		coeff_sum = adi_fft_7_term_bh_4096_sum;
 	else {
 		if (fft_proc->window == RECTANGULAR)
-			coeff_sum = (float)(fft_proc->fft_length * 2.0);
+			coeff_sum = (float)fft_proc->fft_length;
 		else {
 			if (sum <= 0)
 				return -EINVAL;
@@ -220,7 +220,7 @@ static int adi_fft_magnitude_to_db(struct adi_fft_processing *fft_proc,
 		}
 	}
 
-	for (cnt = 0; cnt < fft_proc->fft_length; cnt++) {
+	for (cnt = 0; cnt < fft_proc->fft_length / 2; cnt++) {
 		/* Apply a correction factor
 		 * Divide magnigude by a sum of the windowing function coefficients
 		 * Multiple by 2 because of power spread over spectrum below and above
@@ -369,18 +369,18 @@ static int adi_fft_waveform_stat(struct adi_fft_processing *fft_proc,
 		return -EINVAL;
 
 	/* Sum of all coeffs, to find the Mean value */
-	for (cnt = 0; cnt < fft_proc->fft_length * 2; cnt++)
+	for (cnt = 0; cnt < fft_proc->fft_length; cnt++)
 		sum += fft_proc->input_data[cnt];
 
 	/* Calculating mean value = DC offset */
-	mean = (sum / (fft_proc->fft_length * 2));
+	mean = sum / fft_proc->fft_length;
 
 	/* DC part in LSBs */
 	fft_meas->DC_LSB = (int32_t)(mean) + fft_proc->input_data_zero_scale;
 	offset_correction = (int32_t)(mean);
 
 	/* Find Min, Max amplitudes + Deviation */
-	for (cnt = 0; cnt < fft_proc->fft_length * 2;
+	for (cnt = 0; cnt < fft_proc->fft_length;
 	     cnt++) {
 		/* Calculating the Deviation for Transition noise */
 		deviation += pow(fft_proc->input_data[cnt] - mean, 2.0);
@@ -417,7 +417,7 @@ static int adi_fft_waveform_stat(struct adi_fft_processing *fft_proc,
 					fft_meas->min_amplitude_LSB;
 
 	/* Transition noise */
-	deviation = (sqrt(deviation / (fft_proc->fft_length * 2.0)));
+	deviation = (sqrt(deviation / fft_proc->fft_length));
 	fft_meas->transition_noise_LSB = (uint32_t)(deviation);
 	fft_meas->transition_noise = (2.0 * fft_proc->vref *
 				      fft_meas->transition_noise_LSB) / fft_proc->input_data_full_scale;
@@ -426,7 +426,7 @@ static int adi_fft_waveform_stat(struct adi_fft_processing *fft_proc,
 	fft_meas->RMS_noise = fft_meas->transition_noise;
 
 	/* Applying mean value to each sample = removing DC offset */
-	for (cnt = 0; cnt < fft_proc->fft_length * 2; cnt++)
+	for (cnt = 0; cnt < fft_proc->fft_length; cnt++)
 		fft_proc->input_data[cnt] -= offset_correction;
 
 	return 0;
@@ -459,7 +459,7 @@ static int adi_fft_calculate_noise(struct adi_fft_processing *fft_proc,
 		/* Ignoring DC bins */
 		fft_proc->noise_bins[cnt] = 0.0;
 
-	for (cnt = ADI_FFT_DC_BINS; cnt < fft_proc->fft_length; cnt++) {
+	for (cnt = ADI_FFT_DC_BINS; cnt < fft_proc->fft_length / 2; cnt++) {
 		/* Ignoring spread near the fundamental */
 		if ((cnt <= fft_meas->harmonics_freq[0] + ADI_FFT_FUND_BINS)
 		    && (cnt >= fft_meas->harmonics_freq[0] - ADI_FFT_FUND_BINS))
@@ -497,7 +497,7 @@ static int adi_fft_calculate_noise(struct adi_fft_processing *fft_proc,
 		}
 	}
 
-	mean /= (double)(fft_proc->fft_length);
+	mean /= (double)fft_proc->fft_length;
 
 	/* RSS of FFT spectrum without DC, Fundamental and Harmonics */
 	RSS = sqrt(RSS);
@@ -567,8 +567,7 @@ int adi_fft_perform(struct adi_fft_processing *fft_proc,
 		return -EINVAL;
 
 	fft_proc->fft_done = false;
-	fft_proc->bin_width = (float)(fft_proc->sample_rate) / ((float)
-			      fft_proc->fft_length * 2);
+	fft_proc->bin_width = (float)fft_proc->sample_rate / fft_proc->fft_length;
 
 	/* Perform DC characterization */
 	ret = adi_fft_waveform_stat(fft_proc, fft_meas);

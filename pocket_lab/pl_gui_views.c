@@ -1977,7 +1977,7 @@ int32_t pl_gui_init(struct pl_gui_desc **desc,
 		param->device_params->fft_params->convert_code_to_straight_binary;
 
 	fft_data_samples = param->device_params->fft_params->samples_count;
-	fft_bins = (fft_data_samples / 2) / 2;
+	fft_bins = fft_data_samples / 2;
 
 	return 0;
 }

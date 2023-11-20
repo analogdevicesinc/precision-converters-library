@@ -1030,8 +1030,30 @@ int32_t pl_gui_cnv_code_to_straight_binary(uint32_t code, uint8_t chn)
 }
 
 /**
+ * @brief 	Create pocket lab GUI power-up view
+ * @param	parent[in] - tabview instance
+ * @param	param[in] - pointer to pocket lab gui init params
+ * @return	0 in case of success, negative error code otherwise
+ */
+int32_t pl_gui_create_power_up_view(lv_obj_t *parent,
+				    struct pl_gui_init_param *param)
+{
+	lv_obj_t *obj;
+
+	/* Display pocket lab logo into tab view */
+	LV_IMG_DECLARE(pl_logo);
+	obj = lv_img_create(parent);
+	lv_img_set_src(obj, &pl_logo);
+	lv_img_set_size_mode(obj, LV_IMAGE_SIZE_MODE_REAL);
+	lv_obj_align(obj, LV_ALIGN_TOP_MID, 0, -5);
+
+	return 0;
+}
+
+/**
  * @brief 	Create pocket lab GUI attributes view
- * @param	parent[in] - pointer to attributes view instance
+ * @param	parent[in] - tabview instance
+ * @param	param[in] - pointer to pocket lab gui init params
  * @return	0 in case of success, negative error code otherwise
  */
 int32_t pl_gui_create_attributes_view(lv_obj_t *parent,
@@ -1186,7 +1208,8 @@ int32_t pl_gui_create_attributes_view(lv_obj_t *parent,
 
 /**
  * @brief 	Create pocket lab GUI register view
- * @param	parent[in] - pointer to register view instance
+ * @param	parent[in] - tabview instance
+ * @param	param[in] - pointer to pocket lab gui init params
  * @return	0 in case of success, negative error code otherwise
  */
 int32_t pl_gui_create_register_view(lv_obj_t *parent,
@@ -1329,7 +1352,8 @@ int32_t pl_gui_create_register_view(lv_obj_t *parent,
 
 /**
  * @brief 	Create pocket lab GUI DMM view
- * @param	parent[in] - pointer to DMM view instance
+ * @param	parent[in] - tabview instance
+ * @param	param[in] - pointer to pocket lab gui init params
  * @return	0 in case of success, negative error code otherwise
  */
 int32_t pl_gui_create_dmm_view(lv_obj_t *parent,
@@ -1482,7 +1506,8 @@ error_dmm_chn_checkbox:
 
 /**
  * @brief 	Create pocket lab GUI data capture view
- * @param	parent[in] - pointer to data capture view instance
+ * @param	parent[in] - tabview instance
+ * @param	param[in] - pointer to pocket lab gui init params
  * @return	0 in case of success, negative error code otherwise
  */
 int32_t pl_gui_create_capture_view(lv_obj_t *parent,
@@ -1690,7 +1715,8 @@ error_capture_chn_ser:
 
 /**
  * @brief 	Create pocket lab GUI analysis view
- * @param	parent[in] - pointer to analysis view instance
+ * @param	parent[in] - tabview instance
+ * @param	param[in] - pointer to pocket lab gui init params
  * @return	0 in case of success, negative error code otherwise
  */
 int32_t pl_gui_create_analysis_view(lv_obj_t *parent,
@@ -1834,7 +1860,8 @@ int32_t pl_gui_create_analysis_view(lv_obj_t *parent,
 
 /**
  * @brief 	Create pocket lab GUI about view
- * @param	parent[in] - pointer to about view instance
+ * @param	parent[in] - tabview instance
+ * @param	param[in] - pointer to pocket lab gui init params
  * @return	0 in case of success, negative error code otherwise
  */
 int32_t pl_gui_create_about_view(lv_obj_t *parent,

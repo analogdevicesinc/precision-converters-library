@@ -25,6 +25,11 @@
 /********************** Macros and Constants Definition ***********************/
 /******************************************************************************/
 
+#define PL_GUI_ADD_POWER_UP_DEF_VIEW {\
+	.view_name = " ", \
+	.create_view = &pl_gui_create_power_up_view\
+}
+
 #define PL_GUI_ADD_ATTR_EDIT_DEF_VIEW {\
 	.view_name = "Configure", \
 	.create_view = &pl_gui_create_attributes_view\
@@ -99,6 +104,8 @@ struct pl_gui_desc {
 
 int32_t pl_gui_init(struct pl_gui_desc **desc,
 		    struct pl_gui_init_param *param);
+int32_t pl_gui_create_power_up_view(lv_obj_t* parent,
+				    struct pl_gui_init_param *param);
 int32_t pl_gui_create_attributes_view(lv_obj_t* parent,
 				      struct pl_gui_init_param *param);
 int32_t pl_gui_create_register_view(lv_obj_t* parent,

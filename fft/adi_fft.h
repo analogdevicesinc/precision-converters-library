@@ -79,7 +79,7 @@ struct adi_fft_processing {
 	adi_fft_data_to_volt_conv cnv_data_to_volt_wrt_vref;
 	/* Convert code to straight binary data */
 	adi_fft_code_to_straight_bin_conv cnv_code_to_straight_binary;
-	/* FFT length (samples_count / 2) */
+	/* FFT length */
 	uint16_t fft_length;
 	/* FFT bin width */
 	float bin_width;
@@ -92,7 +92,7 @@ struct adi_fft_processing {
 	/* FFT effective gain */
 	float fft_dB[ADI_FFT_MAX_SAMPLES / 2];
 	/* Maximum length of FFT input array supporred - Real + Imaginary components */
-	float fft_input[ADI_FFT_MAX_SAMPLES];
+	float fft_input[ADI_FFT_MAX_SAMPLES * 2];
 	/* FFT bins excluding DC, fundamental and Harmonics */
 	float noise_bins[ADI_FFT_MAX_SAMPLES / 2];
 	/* FFT window type */

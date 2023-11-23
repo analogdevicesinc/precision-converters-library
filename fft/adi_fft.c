@@ -258,7 +258,7 @@ static int adi_fft_calculate_thd(struct adi_fft_processing *fft_proc,
 		return -EINVAL;
 
 	/* Looking for the fundamental frequency and amplitude */
-	for (i = ADI_FFT_DC_BINS; i < fft_proc->fft_length; i++) {
+	for (i = ADI_FFT_DC_BINS; i < fft_proc->fft_length / 2; i++) {
 		/* Not counting DC bins */
 		if (fft_proc->fft_dB[i] > fund_mag) {
 			fund_mag = fft_proc->fft_dB[i];
@@ -497,7 +497,7 @@ static int adi_fft_calculate_noise(struct adi_fft_processing *fft_proc,
 		}
 	}
 
-	mean /= (double)fft_proc->fft_length;
+	mean /= ((double)fft_proc->fft_length / 2);
 
 	/* RSS of FFT spectrum without DC, Fundamental and Harmonics */
 	RSS = sqrt(RSS);

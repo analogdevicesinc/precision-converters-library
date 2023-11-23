@@ -1,3 +1,17 @@
+/***************************************************************************//**
+ *   @file    adi_logo.c
+ *   @brief   ADI logo image C array
+********************************************************************************
+ * This file is auto generated using lvgl image converter:
+ * https://lvgl.io/tools/imageconverter
+ * 
+ * Copyright (c) 2023 Analog Devices, Inc.
+ *
+ * This software is proprietary to Analog Devices, Inc. and its licensors.
+ * By using this software you agree to the terms of the associated
+ * Analog Devices Software License Agreement.
+*******************************************************************************/
+
 #ifdef __has_include
     #if __has_include("lvgl.h")
         #ifndef LV_LVGL_H_INCLUDE_SIMPLE

@@ -25,7 +25,10 @@
 /************************ Macros/Constants ************************************/
 /******************************************************************************/
 
-/* Maximum number of default samples used for FFT analysis (<=2048) */
+/* Maximum number of default samples used for FFT analysis (must be <=2048)
+ * FFT length = FFT samples. FFT length(samples) are supported only as power of 2
+ * e.g. 512, 1024, 2048
+ * */
 #if !defined(ADI_FFT_MAX_SAMPLES)
 #define ADI_FFT_MAX_SAMPLES		2048
 #endif

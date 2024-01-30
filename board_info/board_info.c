@@ -179,18 +179,6 @@ static int32_t read_and_parse_sdp_eeprom(struct no_os_eeprom_desc *desc,
 			break;
 
 		case 0x02:
-			/* EVB ID info */
-			data_index = 0;
-			while (data_index < record_data_len) {
-				board_info->board_id[data_index] = eeprom_data[index +
-								   SDP_EEPROM_RECORD_FOOTER_LEN
-								   + data_index];
-				data_index++;
-			}
-			board_info->board_id[data_index] = '\0';
-			break;
-
-		case 0x03:
 			/* EVB name info */
 			data_index = 0;
 			while (data_index < record_data_len) {
@@ -200,12 +188,23 @@ static int32_t read_and_parse_sdp_eeprom(struct no_os_eeprom_desc *desc,
 				data_index++;
 			}
 			board_info->board_name[data_index] = '\0';
-			return 0;
+			break;
 
+		case 0x03:
 		case 0x04:
 		case 0x05:
 		case 0x0D:
+			break;
 		case 0x0E:
+			// SAP code ID
+			data_index = 0;
+			while (data_index < record_data_len) {
+				board_info->board_id[data_index] = eeprom_data[index +
+								   SDP_EEPROM_RECORD_FOOTER_LEN + data_index];
+				data_index++;
+			}
+			board_info->board_id[data_index] = '\0';
+			break;
 		case 0x0F:
 			/* Valid but unused record types */
 			break;

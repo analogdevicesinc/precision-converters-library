@@ -394,7 +394,8 @@ void pl_gui_perform_dmm_read(void)
 		read_cntr = 0;
 		for (cnt = 0; cnt < pl_gui_dmm_chn_cnt; cnt++) {
 			ibuf[0] = '\0';
-			if (lv_obj_get_state(pl_gui_dmm_chn_checkbox[cnt]) == LV_STATE_CHECKED) {
+			if (lv_obj_get_state(pl_gui_dmm_chn_checkbox[cnt]) == (LV_STATE_CHECKED |
+					LV_STATE_DISABLED)) {
 				/* get DMM reading for current channel and display it into text area */
 				ret = pl_gui_get_dmm_reading(ibuf, cnt, pl_gui_device_indx);
 				if (ret) {
@@ -442,16 +443,17 @@ void pl_gui_display_captured_data(uint8_t *buf, uint32_t rec_bytes)
 	while (indx < rec_bytes) {
 		if (pl_gui_capture_is_running) {
 			for (chn = 0; chn < pl_gui_capture_chn_cnt; chn++) {
-				if (lv_obj_get_state(pl_gui_capture_chn_checkbox[chn]) == LV_STATE_CHECKED) {
+				if (lv_obj_get_state(pl_gui_capture_chn_checkbox[chn]) ==
+				    (LV_STATE_CHECKED | LV_STATE_DISABLED)) {
 					storage_bytes = pl_gui_capture_chn_info[chn]->storagebits >> 3;
 					memcpy((void *)&code, (void *)&buf[indx], storage_bytes);
-
 					/* Convert code to straight binary */
 					data = pl_gui_cnv_code_to_straight_binary(code, chn);
 
 					pl_gui_rescale_data(&data);
 
-					lv_chart_set_next_value(pl_gui_capture_chart_ovrly, pl_gui_capture_chn_ser[chn],
+					lv_chart_set_next_value(pl_gui_capture_chart_ovrly,
+								pl_gui_capture_chn_ser[chn],
 								data);
 				}
 			}
@@ -561,7 +563,8 @@ void pl_gui_get_capture_chns_mask(uint32_t *chn_mask)
 
 	if (pl_gui_capture_is_running) {
 		for (cnt = 0; cnt < pl_gui_capture_chn_cnt; cnt++) {
-			if (lv_obj_get_state(pl_gui_capture_chn_checkbox[cnt]) == LV_STATE_CHECKED) {
+			if (lv_obj_get_state(pl_gui_capture_chn_checkbox[cnt]) ==
+			    (LV_STATE_CHECKED | LV_STATE_DISABLED)) {
 				*chn_mask |= mask;
 			}
 			mask <<= 1;
@@ -856,6 +859,7 @@ static void pl_gui_dmm_btn_event_cb(lv_event_t *event)
 {
 	char *text;
 	uint32_t cnt;
+	uint8_t num_of_enabled_channels = 0;
 	lv_event_code_t code = lv_event_get_code(event);
 	lv_obj_t *btn = lv_event_get_target(event);
 
@@ -867,7 +871,8 @@ static void pl_gui_dmm_btn_event_cb(lv_event_t *event)
 		if (!strcmp(text, "Enable All")) {
 			if (!pl_gui_dmm_is_running) {
 				for (cnt = 0; cnt < pl_gui_dmm_chn_cnt; cnt++) {
-					lv_obj_add_state(pl_gui_dmm_chn_checkbox[cnt], LV_STATE_CHECKED);
+					lv_obj_add_state(pl_gui_dmm_chn_checkbox[cnt],
+							 LV_STATE_CHECKED | LV_STATE_DISABLED);
 				}
 			}
 		} else if (!strcmp(text, "Disable All")) {
@@ -879,12 +884,36 @@ static void pl_gui_dmm_btn_event_cb(lv_event_t *event)
 		} else { // Start/Stop label
 			if (pl_gui_dmm_is_running) {
 				lv_label_set_text(label, "Start");
+
+				for (cnt = 0; cnt < pl_gui_dmm_chn_cnt; cnt++) {
+					if (lv_obj_get_state(pl_gui_dmm_chn_checkbox[cnt]) == LV_STATE_CHECKED) {
+						lv_obj_clear_state(pl_gui_dmm_chn_checkbox[cnt],
+								   LV_STATE_CHECKED | LV_STATE_DISABLED);
+					} else {
+						lv_obj_clear_state(pl_gui_dmm_chn_checkbox[cnt], LV_STATE_DISABLED);
+					}
+				}
+
 				lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_GREEN), LV_PART_MAIN);
+				pl_gui_dmm_is_running = !pl_gui_dmm_is_running;
 			} else {
 				lv_label_set_text(label, "Stop");
+				for (cnt = 0; cnt < pl_gui_dmm_chn_cnt; cnt++) {
+					if (lv_obj_get_state(pl_gui_dmm_chn_checkbox[cnt]) == LV_STATE_CHECKED) {
+						num_of_enabled_channels++;
+						lv_obj_add_state(pl_gui_dmm_chn_checkbox[cnt],
+							LV_STATE_CHECKED | LV_STATE_DISABLED);
+					}
+					else {
+						lv_obj_add_state(pl_gui_dmm_chn_checkbox[cnt], LV_STATE_DISABLED);
+					}
+				}
+
 				lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_RED), LV_PART_MAIN);
 			}
-			pl_gui_dmm_is_running = !pl_gui_dmm_is_running;
+			if (num_of_enabled_channels) {
+				pl_gui_dmm_is_running = !pl_gui_dmm_is_running;
+			}
 		}
 	}
 }
@@ -900,19 +929,20 @@ static void pl_gui_capture_btn_event_cb(lv_event_t *event)
 	uint32_t cnt;
 	lv_event_code_t code = lv_event_get_code(event);
 	lv_obj_t *btn = lv_event_get_target(event);
+	uint8_t num_of_enabled_channels = 0;
 
 	if (code == LV_EVENT_CLICKED) {
 		lv_obj_t *label = lv_obj_get_child(btn, 0);
 		text = lv_label_get_text(label);
 
 		if (!strcmp(text, "Enable All")) {
-			if (!pl_gui_dmm_is_running) {
+			if (!pl_gui_capture_is_running) {
 				for (cnt = 0; cnt < pl_gui_capture_chn_cnt; cnt++) {
 					lv_obj_add_state(pl_gui_capture_chn_checkbox[cnt], LV_STATE_CHECKED);
 				}
 			}
 		} else if (!strcmp(text, "Disable All")) {
-			if (!pl_gui_dmm_is_running) {
+			if (!pl_gui_capture_is_running) {
 				for (cnt = 0; cnt < pl_gui_capture_chn_cnt; cnt++) {
 					lv_obj_clear_state(pl_gui_capture_chn_checkbox[cnt], LV_STATE_CHECKED);
 				}
@@ -924,11 +954,17 @@ static void pl_gui_capture_btn_event_cb(lv_event_t *event)
 
 				/* Remove previously enabled channels from pl_gui_capture_chart_ovrly series */
 				for (cnt = 0; cnt < pl_gui_capture_chn_cnt; cnt++) {
-					if (lv_obj_get_state(pl_gui_capture_chn_checkbox[cnt]) == LV_STATE_CHECKED) {
+					if (lv_obj_get_state(pl_gui_capture_chn_checkbox[cnt]) ==
+					    (LV_STATE_CHECKED | LV_STATE_DISABLED)) {
+						lv_obj_clear_state(pl_gui_capture_chn_checkbox[cnt],
+								   LV_STATE_CHECKED| LV_STATE_DISABLED);
 						lv_chart_remove_series(pl_gui_capture_chart_ovrly, pl_gui_capture_chn_ser[cnt]);
 						pl_gui_capture_chn_ser[cnt] = NULL;
+					} else {
+						lv_obj_clear_state(pl_gui_capture_chn_checkbox[cnt],LV_STATE_DISABLED);
 					}
 				}
+				pl_gui_capture_is_running = !pl_gui_capture_is_running;
 			} else {
 				lv_label_set_text(label, "Stop");
 				lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_RED), LV_PART_MAIN);
@@ -936,14 +972,21 @@ static void pl_gui_capture_btn_event_cb(lv_event_t *event)
 				/* Add enabled channels to pl_gui_capture_chart_ovrly series */
 				for (cnt = 0; cnt < pl_gui_capture_chn_cnt; cnt++) {
 					if (lv_obj_get_state(pl_gui_capture_chn_checkbox[cnt]) == LV_STATE_CHECKED) {
-						pl_gui_capture_chn_ser[cnt] = lv_chart_add_series(pl_gui_capture_chart_ovrly,
-									      lv_palette_main(pl_gui_capture_chn_ser_col[cnt]),
-									      LV_CHART_AXIS_PRIMARY_Y);
-						lv_chart_set_point_count(pl_gui_capture_chart_ovrly, 400);
+						num_of_enabled_channels++;
+						lv_obj_add_state(pl_gui_capture_chn_checkbox[cnt],
+								 LV_STATE_CHECKED | LV_STATE_DISABLED);
+					} else {
+						lv_obj_add_state(pl_gui_capture_chn_checkbox[cnt], LV_STATE_DISABLED);
 					}
+					pl_gui_capture_chn_ser[cnt] = lv_chart_add_series(pl_gui_capture_chart_ovrly,
+								      lv_palette_main(pl_gui_capture_chn_ser_col[cnt]),
+								      LV_CHART_AXIS_PRIMARY_Y);
+					lv_chart_set_point_count(pl_gui_capture_chart_ovrly, 400);
+				}
+				if (num_of_enabled_channels) {
+					pl_gui_capture_is_running = !pl_gui_capture_is_running;
 				}
 			}
-			pl_gui_capture_is_running = !pl_gui_capture_is_running;
 		}
 	}
 }
@@ -1060,7 +1103,7 @@ int32_t pl_gui_create_attributes_view(lv_obj_t *parent,
 				      struct pl_gui_init_param *param)
 {
 	int32_t ret;
-	char dropdown_list[100];
+	char dropdown_list[200];
 	lv_obj_t *wr_btn;
 	lv_obj_t *rd_btn;
 	uint32_t nb_of_chn;
@@ -1215,7 +1258,7 @@ int32_t pl_gui_create_attributes_view(lv_obj_t *parent,
 int32_t pl_gui_create_register_view(lv_obj_t *parent,
 				    struct pl_gui_init_param *param)
 {
-	char dropdown_list[100];
+	char dropdown_list[200];
 	int32_t ret;
 
 	/* Get device names */
@@ -1360,7 +1403,7 @@ int32_t pl_gui_create_dmm_view(lv_obj_t *parent,
 			       struct pl_gui_init_param *param)
 {
 	int32_t ret;
-	char dropdown_list[100];
+	char dropdown_list[200];
 	char chn_name[10];
 	char chn_unit[10];
 	char label_str[50];
@@ -1515,7 +1558,7 @@ int32_t pl_gui_create_capture_view(lv_obj_t *parent,
 {
 	int32_t ret;
 	uint32_t cnt;
-	char dropdown_list[100];
+	char dropdown_list[200];
 	char chn_name[10];
 	char label_str[50];
 	char ibuf[100];
@@ -1541,7 +1584,8 @@ int32_t pl_gui_create_capture_view(lv_obj_t *parent,
 
 	/* Create the capture Start/Stop Button */
 	start_btn = lv_btn_create(parent);
-	lv_obj_set_size(start_btn, 100, 45);
+	lv_obj_set_size(start_btn, 105, 55);
+	lv_obj_set_ext_click_area(pl_gui_dmm_btn_start, 100);
 	lv_obj_align_to(start_btn, pl_gui_dd_device_select, LV_ALIGN_OUT_RIGHT_TOP, 10,
 			0);
 	lv_obj_add_event(start_btn, pl_gui_capture_btn_event_cb, LV_EVENT_ALL,
@@ -1723,7 +1767,7 @@ int32_t pl_gui_create_analysis_view(lv_obj_t *parent,
 				    struct pl_gui_init_param *param)
 {
 	int32_t ret;
-	char dropdown_list[100];
+	char dropdown_list[200];
 	lv_obj_t *start_btn;
 	lv_obj_t *label;
 

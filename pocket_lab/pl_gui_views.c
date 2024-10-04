@@ -2,7 +2,7 @@
  *   @file    pl_gui_views.c
  *   @brief   Pocket lab GUI views
 ********************************************************************************
- * Copyright (c) 2023 Analog Devices, Inc.
+ * Copyright (c) 2023-24 Analog Devices, Inc.
  *
  * This software is proprietary to Analog Devices, Inc. and its licensors.
  * By using this software you agree to the terms of the associated
@@ -57,11 +57,27 @@
 
 /* Hexadecimal button matrix */
 static const char *pl_gui_btnm_hex_map[] = {
-	"1", "2", "3", "A", "B", "\n",
-	"4", "5", "6", "C", "D", "\n",
-	"7", "8", "9", "E", "F", "\n",
+	"1",
+	"2",
+	"3",
+	"A",
+	"B",
+	"\n",
+	"4",
+	"5",
+	"6",
+	"C",
+	"D",
+	"\n",
+	"7",
+	"8",
+	"9",
+	"E",
+	"F",
+	"\n",
 	LV_SYMBOL_BACKSPACE,
-	"0", ".",
+	"0",
+	".",
 	LV_SYMBOL_NEW_LINE,
 	""
 };
@@ -177,6 +193,15 @@ static adi_fft_data_to_volt_conv data_to_volt_wrt_vref;
  * binary data */
 static adi_fft_code_to_straight_bin_conv code_to_straight_binary;
 
+/* Pocket Lab Instance */
+static struct pl_gui_init_param pl_instance =  {
+	.event1 = NULL,
+	.event2 = NULL
+};
+
+/* Local copy of init params */
+struct pl_gui_init_param *pl_structure = &pl_instance;
+
 /******************************************************************************/
 /************************ Functions Prototypes ********************************/
 /******************************************************************************/
@@ -264,8 +289,10 @@ static void pl_gui_read_and_display_attr(void)
 
 		/* Read available attribute options */
 		chn_pos = lv_dropdown_get_selected(pl_gui_dd_chan_select);
-		chn_pos -= 1;     // First position is for global attr
-		ret = pl_gui_get_chn_attr_avail_options(ibuf, obuf, chn_pos,
+		chn_pos -= 1; // First position is for global attr
+		ret = pl_gui_get_chn_attr_avail_options(ibuf,
+							obuf,
+							chn_pos,
 							pl_gui_device_indx);
 		if (!ret) {
 			pl_replace_char(obuf, ' ', '\n');
@@ -314,7 +341,8 @@ static void pl_gui_update_and_readback_attr(void)
 			return;
 		}
 
-		ret = pl_gui_write_global_attr(ibuf, (char *)text,
+		ret = pl_gui_write_global_attr(ibuf,
+					       (char *)text,
 					       pl_gui_device_indx);
 		if (ret) {
 			return;
@@ -322,7 +350,7 @@ static void pl_gui_update_and_readback_attr(void)
 	} else {
 		/* Write channel attribute */
 		chn_pos = lv_dropdown_get_selected(pl_gui_dd_chan_select);
-		chn_pos -= 1;      // First position is for global attr
+		chn_pos -= 1; // First position is for global attr
 		text = lv_textarea_get_text(pl_gui_ta_attr_rw_value);
 		ibuf[0] = '\0';
 		lv_dropdown_get_selected_str(pl_gui_dd_attr_select, ibuf, sizeof(ibuf));
@@ -330,7 +358,9 @@ static void pl_gui_update_and_readback_attr(void)
 			return;
 		}
 
-		ret = pl_gui_write_chn_attr(ibuf, (char *)text, chn_pos,
+		ret = pl_gui_write_chn_attr(ibuf,
+					    (char *)text,
+					    chn_pos,
 					    pl_gui_device_indx);
 		if (ret) {
 			return;
@@ -508,13 +538,18 @@ void pl_gui_display_captured_data(uint8_t *buf, uint32_t rec_bytes)
 		lv_label_set_text(fund_power_label, obuf);
 
 		obuf[0] = '\0';
-		sprintf(obuf, "%.3f Hz",
+		sprintf(obuf,
+			"%.3f Hz",
 			pl_gui_fft_meas.harmonics_freq[0]*pl_gui_fft_proc.bin_width);
 		lv_label_set_text(fund_freq_label, obuf);
 
 		obuf[0] = '\0';
 		sprintf(obuf, "%.3f uV", pl_gui_fft_meas.RMS_noise * 1000000.0);
 		lv_label_set_text(rms_noise_label, obuf);
+
+		if (pl_structure->event2 != 0) {
+			pl_structure->event2(&pl_gui_fft_proc, fft_data_samples, fft_bins);
+		}
 
 		cnt = 0;
 	}
@@ -641,7 +676,8 @@ static void pl_gui_add_btnmap_kb(void)
 	lv_obj_add_flag(pl_gui_kb_btnmap, LV_OBJ_FLAG_HIDDEN);
 
 	/* Add button matrix event */
-	lv_obj_add_event(pl_gui_kb_btnmap, pl_gui_btnmp_event_cb,
+	lv_obj_add_event(pl_gui_kb_btnmap,
+			 pl_gui_btnmp_event_cb,
 			 LV_EVENT_VALUE_CHANGED,
 			 NULL);
 }
@@ -713,7 +749,7 @@ static void pl_gui_chn_select_event_cb(lv_event_t *event)
 			/* Read channel attribute names and store into attribute
 			 * selection dropdown*/
 			chn_pos = lv_dropdown_get_selected(pl_gui_dd_chan_select);
-			chn_pos -= 1;  // First position is for global attr
+			chn_pos -= 1; // First position is for global attr
 			pl_gui_get_chn_attr_names(obuf, chn_pos, pl_gui_device_indx);
 		}
 
@@ -881,7 +917,8 @@ static void pl_gui_dmm_btn_event_cb(lv_event_t *event)
 					lv_obj_clear_state(pl_gui_dmm_chn_checkbox[cnt], LV_STATE_CHECKED);
 				}
 			}
-		} else { // Start/Stop label
+		} else {
+			// Start/Stop label
 			if (pl_gui_dmm_is_running) {
 				lv_label_set_text(label, "Start");
 
@@ -902,9 +939,8 @@ static void pl_gui_dmm_btn_event_cb(lv_event_t *event)
 					if (lv_obj_get_state(pl_gui_dmm_chn_checkbox[cnt]) == LV_STATE_CHECKED) {
 						num_of_enabled_channels++;
 						lv_obj_add_state(pl_gui_dmm_chn_checkbox[cnt],
-							LV_STATE_CHECKED | LV_STATE_DISABLED);
-					}
-					else {
+								 LV_STATE_CHECKED | LV_STATE_DISABLED);
+					} else {
 						lv_obj_add_state(pl_gui_dmm_chn_checkbox[cnt], LV_STATE_DISABLED);
 					}
 				}
@@ -947,7 +983,8 @@ static void pl_gui_capture_btn_event_cb(lv_event_t *event)
 					lv_obj_clear_state(pl_gui_capture_chn_checkbox[cnt], LV_STATE_CHECKED);
 				}
 			}
-		} else { // Start/Stop label
+		} else {
+			// Start/Stop label
 			if (pl_gui_capture_is_running) {
 				lv_label_set_text(label, "Start");
 				lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_GREEN), LV_PART_MAIN);
@@ -961,7 +998,8 @@ static void pl_gui_capture_btn_event_cb(lv_event_t *event)
 						lv_chart_remove_series(pl_gui_capture_chart_ovrly, pl_gui_capture_chn_ser[cnt]);
 						pl_gui_capture_chn_ser[cnt] = NULL;
 					} else {
-						lv_obj_clear_state(pl_gui_capture_chn_checkbox[cnt],LV_STATE_DISABLED);
+						lv_obj_clear_state(pl_gui_capture_chn_checkbox[cnt], LV_STATE_DISABLED);
+
 					}
 				}
 				pl_gui_capture_is_running = !pl_gui_capture_is_running;
@@ -1009,6 +1047,9 @@ static void pl_gui_fft_btn_event_cb(lv_event_t *event)
 		if (pl_gui_fft_is_running) {
 			lv_label_set_text(label, "Start");
 			lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_GREEN), LV_PART_MAIN);
+			if (pl_structure->event1 != NULL) {
+				pl_structure->event1();
+			}
 
 			/* Remove previously enabled channel from series */
 			lv_chart_remove_series(pl_gui_fft_chart, pl_gui_fft_chn_ser);
@@ -1124,10 +1165,14 @@ int32_t pl_gui_create_attributes_view(lv_obj_t *parent,
 	lv_label_set_text(label, "Device");
 	lv_obj_align(label, LV_ALIGN_TOP_LEFT, 5, 20);
 	pl_gui_dd_device_select = lv_dropdown_create(parent);
-	lv_obj_align_to(pl_gui_dd_device_select, label, LV_ALIGN_OUT_BOTTOM_LEFT, 0,
+	lv_obj_align_to(pl_gui_dd_device_select,
+			label,
+			LV_ALIGN_OUT_BOTTOM_LEFT,
+			0,
 			10);
 	lv_dropdown_set_options(pl_gui_dd_device_select, dropdown_list);
-	lv_obj_add_event(pl_gui_dd_device_select, pl_gui_device_select_event_cb,
+	lv_obj_add_event(pl_gui_dd_device_select,
+			 pl_gui_device_select_event_cb,
 			 LV_EVENT_ALL,
 			 NULL);
 
@@ -1145,12 +1190,14 @@ int32_t pl_gui_create_attributes_view(lv_obj_t *parent,
 
 	/* Create channel select dropdown and insert channel names */
 	pl_gui_dd_chan_select = lv_dropdown_create(parent);
-	lv_obj_align_to(pl_gui_dd_chan_select, pl_gui_dd_device_select,
+	lv_obj_align_to(pl_gui_dd_chan_select,
+			pl_gui_dd_device_select,
 			LV_ALIGN_OUT_RIGHT_MID,
 			20,
 			0);
 	lv_dropdown_set_options(pl_gui_dd_chan_select, dropdown_list);
-	lv_obj_add_event(pl_gui_dd_chan_select, pl_gui_chn_select_event_cb,
+	lv_obj_add_event(pl_gui_dd_chan_select,
+			 pl_gui_chn_select_event_cb,
 			 LV_EVENT_ALL,
 			 NULL);
 
@@ -1167,11 +1214,14 @@ int32_t pl_gui_create_attributes_view(lv_obj_t *parent,
 
 	/* Create attribute select dropdown and insert attribute names */
 	pl_gui_dd_attr_select = lv_dropdown_create(parent);
-	lv_obj_align_to(pl_gui_dd_attr_select, pl_gui_dd_chan_select,
+	lv_obj_align_to(pl_gui_dd_attr_select,
+			pl_gui_dd_chan_select,
 			LV_ALIGN_OUT_RIGHT_TOP,
-			20, 0);
+			20,
+			0);
 	lv_dropdown_set_options(pl_gui_dd_attr_select, dropdown_list);
-	lv_obj_add_event(pl_gui_dd_attr_select, pl_gui_attr_select_event_cb,
+	lv_obj_add_event(pl_gui_dd_attr_select,
+			 pl_gui_attr_select_event_cb,
 			 LV_EVENT_ALL,
 			 NULL);
 	lv_obj_set_width(pl_gui_dd_attr_select, 300);
@@ -1186,10 +1236,13 @@ int32_t pl_gui_create_attributes_view(lv_obj_t *parent,
 	lv_textarea_set_text(pl_gui_ta_attr_rw_value, "0");
 	lv_textarea_set_max_length(pl_gui_ta_attr_rw_value, 30);
 	lv_obj_set_width(pl_gui_ta_attr_rw_value, 300);
-	lv_obj_align_to(pl_gui_ta_attr_rw_value, pl_gui_dd_attr_select,
-			LV_ALIGN_OUT_BOTTOM_LEFT, 0,
+	lv_obj_align_to(pl_gui_ta_attr_rw_value,
+			pl_gui_dd_attr_select,
+			LV_ALIGN_OUT_BOTTOM_LEFT,
+			0,
 			20);
-	lv_obj_add_event(pl_gui_ta_attr_rw_value, pl_gui_ta_event_handler,
+	lv_obj_add_event(pl_gui_ta_attr_rw_value,
+			 pl_gui_ta_event_handler,
 			 LV_EVENT_CLICKED,
 			 NULL);
 
@@ -1204,12 +1257,16 @@ int32_t pl_gui_create_attributes_view(lv_obj_t *parent,
 	lv_label_set_text(label, "Read");
 	lv_obj_center(label);
 	lv_obj_add_event(rd_btn, pl_gui_attr_read_btn_event_cb, LV_EVENT_ALL, NULL);
-	lv_obj_set_style_bg_color(rd_btn, lv_palette_main(LV_PALETTE_PURPLE),
+	lv_obj_set_style_bg_color(rd_btn,
+				  lv_palette_main(LV_PALETTE_PURPLE),
 				  LV_PART_MAIN);
 
 	wr_btn = lv_btn_create(parent);
 	lv_obj_set_size(wr_btn, 100, 50);
-	lv_obj_align_to(wr_btn, pl_gui_ta_attr_rw_value, LV_ALIGN_OUT_RIGHT_MID, 10,
+	lv_obj_align_to(wr_btn,
+			pl_gui_ta_attr_rw_value,
+			LV_ALIGN_OUT_RIGHT_MID,
+			10,
 			60);
 	label = lv_label_create(wr_btn);
 	lv_label_set_text(label, "Write");
@@ -1235,14 +1292,19 @@ int32_t pl_gui_create_attributes_view(lv_obj_t *parent,
 
 	label = lv_label_create(parent);
 	lv_label_set_text(label, "available options");
-	lv_obj_align_to(label, pl_gui_dd_avail_attr_select, LV_ALIGN_OUT_RIGHT_MID, 5,
+	lv_obj_align_to(label,
+			pl_gui_dd_avail_attr_select,
+			LV_ALIGN_OUT_RIGHT_MID,
+			5,
 			0);
 
 	/* Add event for keyboard visibility management */
-	lv_obj_add_event(pl_gui_ta_attr_rw_value, pl_gui_manage_btnmap_kb,
+	lv_obj_add_event(pl_gui_ta_attr_rw_value,
+			 pl_gui_manage_btnmap_kb,
 			 LV_EVENT_FOCUSED,
 			 NULL);
-	lv_obj_add_event(pl_gui_ta_attr_rw_value, pl_gui_manage_btnmap_kb,
+	lv_obj_add_event(pl_gui_ta_attr_rw_value,
+			 pl_gui_manage_btnmap_kb,
 			 LV_EVENT_DEFOCUSED,
 			 NULL);
 
@@ -1272,7 +1334,8 @@ int32_t pl_gui_create_register_view(lv_obj_t *parent,
 	pl_gui_dd_device_select = lv_dropdown_create(parent);
 	lv_obj_align(pl_gui_dd_device_select, LV_ALIGN_TOP_MID, 0, 0);
 	lv_dropdown_set_options(pl_gui_dd_device_select, dropdown_list);
-	lv_obj_add_event(pl_gui_dd_device_select, pl_gui_device_select_event_cb,
+	lv_obj_add_event(pl_gui_dd_device_select,
+			 pl_gui_device_select_event_cb,
 			 LV_EVENT_ALL,
 			 NULL);
 
@@ -1283,7 +1346,8 @@ int32_t pl_gui_create_register_view(lv_obj_t *parent,
 	lv_textarea_set_accepted_chars(pl_gui_ta_reg_address, "0123456789ABCDEFabcdef");
 	lv_textarea_set_max_length(pl_gui_ta_reg_address, 8);
 	lv_obj_align(pl_gui_ta_reg_address, LV_ALIGN_TOP_MID, 0, 80);
-	lv_obj_add_event(pl_gui_ta_reg_address, pl_gui_ta_event_handler,
+	lv_obj_add_event(pl_gui_ta_reg_address,
+			 pl_gui_ta_event_handler,
 			 LV_EVENT_CLICKED,
 			 NULL);
 
@@ -1300,7 +1364,8 @@ int32_t pl_gui_create_register_view(lv_obj_t *parent,
 	lv_label_set_text(label, "-");
 	lv_obj_center(label);
 	lv_obj_add_event(btn, pl_gui_reg_btn_event_cb, LV_EVENT_ALL, NULL);
-	lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_ORANGE),
+	lv_obj_set_style_bg_color(btn,
+				  lv_palette_main(LV_PALETTE_ORANGE),
 				  LV_PART_MAIN);
 
 	btn = lv_btn_create(parent);
@@ -1317,10 +1382,13 @@ int32_t pl_gui_create_register_view(lv_obj_t *parent,
 	lv_textarea_set_one_line(pl_gui_ta_reg_read_value, true);
 	lv_textarea_set_text(pl_gui_ta_reg_read_value, "0");
 	lv_obj_clear_flag(pl_gui_ta_reg_read_value, LV_OBJ_FLAG_CLICKABLE);
-	lv_obj_align_to(pl_gui_ta_reg_read_value, pl_gui_ta_reg_address,
-			LV_ALIGN_OUT_BOTTOM_MID, 0,
+	lv_obj_align_to(pl_gui_ta_reg_read_value,
+			pl_gui_ta_reg_address,
+			LV_ALIGN_OUT_BOTTOM_MID,
+			0,
 			30);
-	lv_obj_add_event(pl_gui_ta_reg_read_value, pl_gui_ta_event_handler,
+	lv_obj_add_event(pl_gui_ta_reg_read_value,
+			 pl_gui_ta_event_handler,
 			 LV_EVENT_CLICKED,
 			 NULL);
 
@@ -1340,7 +1408,8 @@ int32_t pl_gui_create_register_view(lv_obj_t *parent,
 	lv_obj_center(label);
 
 	lv_obj_add_event(btn, pl_gui_reg_btn_event_cb, LV_EVENT_ALL, NULL);
-	lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_PURPLE),
+	lv_obj_set_style_bg_color(btn,
+				  lv_palette_main(LV_PALETTE_PURPLE),
 				  LV_PART_MAIN);
 
 	/* Register write value text area */
@@ -1350,17 +1419,23 @@ int32_t pl_gui_create_register_view(lv_obj_t *parent,
 	lv_textarea_set_accepted_chars(pl_gui_ta_reg_write_value,
 				       "0123456789ABCDEFabcdef");
 	lv_textarea_set_max_length(pl_gui_ta_reg_write_value, 8);
-	lv_obj_align_to(pl_gui_ta_reg_write_value, pl_gui_ta_reg_read_value,
+	lv_obj_align_to(pl_gui_ta_reg_write_value,
+			pl_gui_ta_reg_read_value,
 			LV_ALIGN_OUT_BOTTOM_MID,
-			0, 30);
-	lv_obj_add_event(pl_gui_ta_reg_write_value, pl_gui_ta_event_handler,
+			0,
+			30);
+	lv_obj_add_event(pl_gui_ta_reg_write_value,
+			 pl_gui_ta_event_handler,
 			 LV_EVENT_CLICKED,
 			 NULL);
 
 	/* Register write value label */
 	label = lv_label_create(parent);
 	lv_label_set_text(label, "Write Value (hex)");
-	lv_obj_align_to(label, pl_gui_ta_reg_write_value, LV_ALIGN_OUT_LEFT_MID, -10,
+	lv_obj_align_to(label,
+			pl_gui_ta_reg_write_value,
+			LV_ALIGN_OUT_LEFT_MID,
+			-10,
 			0);
 
 	/* Register write value button */
@@ -1377,16 +1452,20 @@ int32_t pl_gui_create_register_view(lv_obj_t *parent,
 	lv_obj_set_style_bg_color(btn, lv_palette_main(LV_PALETTE_GREEN), LV_PART_MAIN);
 
 	/* Callbacks to manage visibilty of the hex keypad */
-	lv_obj_add_event(pl_gui_ta_reg_address, pl_gui_manage_btnmap_kb,
+	lv_obj_add_event(pl_gui_ta_reg_address,
+			 pl_gui_manage_btnmap_kb,
 			 LV_EVENT_FOCUSED,
 			 NULL);
-	lv_obj_add_event(pl_gui_ta_reg_address, pl_gui_manage_btnmap_kb,
+	lv_obj_add_event(pl_gui_ta_reg_address,
+			 pl_gui_manage_btnmap_kb,
 			 LV_EVENT_DEFOCUSED,
 			 NULL);
-	lv_obj_add_event(pl_gui_ta_reg_write_value, pl_gui_manage_btnmap_kb,
+	lv_obj_add_event(pl_gui_ta_reg_write_value,
+			 pl_gui_manage_btnmap_kb,
 			 LV_EVENT_FOCUSED,
 			 NULL);
-	lv_obj_add_event(pl_gui_ta_reg_write_value, pl_gui_manage_btnmap_kb,
+	lv_obj_add_event(pl_gui_ta_reg_write_value,
+			 pl_gui_manage_btnmap_kb,
 			 LV_EVENT_DEFOCUSED,
 			 NULL);
 
@@ -1408,7 +1487,7 @@ int32_t pl_gui_create_dmm_view(lv_obj_t *parent,
 	char chn_unit[10];
 	char label_str[50];
 	uint32_t cnt;
-	uint32_t i=0, j=0;
+	uint32_t i = 0, j = 0;
 	uint32_t row_height;
 	lv_obj_t *obj;
 
@@ -1423,17 +1502,22 @@ int32_t pl_gui_create_dmm_view(lv_obj_t *parent,
 	pl_gui_dd_device_select = lv_dropdown_create(parent);
 	lv_obj_align(pl_gui_dd_device_select, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 0);
 	lv_dropdown_set_options(pl_gui_dd_device_select, dropdown_list);
-	lv_obj_add_event(pl_gui_dd_device_select, pl_gui_device_select_event_cb,
+	lv_obj_add_event(pl_gui_dd_device_select,
+			 pl_gui_device_select_event_cb,
 			 LV_EVENT_ALL,
 			 NULL);
 
 	/* DMM start button */
 	pl_gui_dmm_btn_start = lv_btn_create(parent);
 	lv_obj_set_size(pl_gui_dmm_btn_start, 120, 50);
-	lv_obj_align_to(pl_gui_dmm_btn_start, pl_gui_dmm_btn_start,
-			LV_ALIGN_OUT_BOTTOM_LEFT, 0,
+	lv_obj_align_to(pl_gui_dmm_btn_start,
+			pl_gui_dmm_btn_start,
+			LV_ALIGN_OUT_BOTTOM_LEFT,
+			0,
 			30);
-	lv_obj_add_event(pl_gui_dmm_btn_start, pl_gui_dmm_btn_event_cb, LV_EVENT_ALL,
+	lv_obj_add_event(pl_gui_dmm_btn_start,
+			 pl_gui_dmm_btn_event_cb,
+			 LV_EVENT_ALL,
 			 NULL);
 	lv_obj_set_style_bg_color(pl_gui_dmm_btn_start,
 				  lv_palette_main(LV_PALETTE_GREEN),
@@ -1447,10 +1531,13 @@ int32_t pl_gui_create_dmm_view(lv_obj_t *parent,
 	/* DMM enable all button */
 	pl_gui_dmm_btn_enable_all = lv_btn_create(parent);
 	lv_obj_set_size(pl_gui_dmm_btn_enable_all, 120, 50);
-	lv_obj_align_to(pl_gui_dmm_btn_enable_all, pl_gui_dmm_btn_start,
-			LV_ALIGN_OUT_BOTTOM_LEFT, 0,
+	lv_obj_align_to(pl_gui_dmm_btn_enable_all,
+			pl_gui_dmm_btn_start,
+			LV_ALIGN_OUT_BOTTOM_LEFT,
+			0,
 			30);
-	lv_obj_add_event(pl_gui_dmm_btn_enable_all, pl_gui_dmm_btn_event_cb,
+	lv_obj_add_event(pl_gui_dmm_btn_enable_all,
+			 pl_gui_dmm_btn_event_cb,
 			 LV_EVENT_ALL,
 			 NULL);
 
@@ -1462,10 +1549,13 @@ int32_t pl_gui_create_dmm_view(lv_obj_t *parent,
 	/* DMM disable all button */
 	pl_gui_dmm_btn_disable_all = lv_btn_create(parent);
 	lv_obj_set_size(pl_gui_dmm_btn_disable_all, 120, 50);
-	lv_obj_align_to(pl_gui_dmm_btn_disable_all, pl_gui_dmm_btn_enable_all,
-			LV_ALIGN_OUT_BOTTOM_LEFT, 0,
+	lv_obj_align_to(pl_gui_dmm_btn_disable_all,
+			pl_gui_dmm_btn_enable_all,
+			LV_ALIGN_OUT_BOTTOM_LEFT,
+			0,
 			30);
-	lv_obj_add_event(pl_gui_dmm_btn_disable_all, pl_gui_dmm_btn_event_cb,
+	lv_obj_add_event(pl_gui_dmm_btn_disable_all,
+			 pl_gui_dmm_btn_event_cb,
 			 LV_EVENT_ALL,
 			 NULL);
 
@@ -1477,12 +1567,16 @@ int32_t pl_gui_create_dmm_view(lv_obj_t *parent,
 	/* Create the scrolling view container */
 	lv_obj_t *cont_col = lv_obj_create(parent);
 	lv_obj_set_size(cont_col, 600, 400);
-	lv_obj_align_to(cont_col, pl_gui_dd_device_select, LV_ALIGN_OUT_RIGHT_TOP, 20,
+	lv_obj_align_to(cont_col,
+			pl_gui_dd_device_select,
+			LV_ALIGN_OUT_RIGHT_TOP,
+			20,
 			0);
 
 	/* Get the name of all channels for selected device */
 	dropdown_list[0] = '\0';
-	ret = pl_gui_get_chn_names(dropdown_list, &pl_gui_dmm_chn_cnt,
+	ret = pl_gui_get_chn_names(dropdown_list,
+				   &pl_gui_dmm_chn_cnt,
 				   pl_gui_device_indx);
 	if (ret) {
 		return ret;
@@ -1578,7 +1672,8 @@ int32_t pl_gui_create_capture_view(lv_obj_t *parent,
 	pl_gui_dd_device_select = lv_dropdown_create(parent);
 	lv_obj_align(pl_gui_dd_device_select, LV_ALIGN_OUT_RIGHT_TOP, 0, 0);
 	lv_dropdown_set_options(pl_gui_dd_device_select, dropdown_list);
-	lv_obj_add_event(pl_gui_dd_device_select, pl_gui_device_select_event_cb,
+	lv_obj_add_event(pl_gui_dd_device_select,
+			 pl_gui_device_select_event_cb,
 			 LV_EVENT_ALL,
 			 NULL);
 
@@ -1586,11 +1681,17 @@ int32_t pl_gui_create_capture_view(lv_obj_t *parent,
 	start_btn = lv_btn_create(parent);
 	lv_obj_set_size(start_btn, 105, 55);
 	lv_obj_set_ext_click_area(pl_gui_dmm_btn_start, 100);
-	lv_obj_align_to(start_btn, pl_gui_dd_device_select, LV_ALIGN_OUT_RIGHT_TOP, 10,
+	lv_obj_align_to(start_btn,
+			pl_gui_dd_device_select,
+			LV_ALIGN_OUT_RIGHT_TOP,
+			10,
 			0);
-	lv_obj_add_event(start_btn, pl_gui_capture_btn_event_cb, LV_EVENT_ALL,
+	lv_obj_add_event(start_btn,
+			 pl_gui_capture_btn_event_cb,
+			 LV_EVENT_ALL,
 			 NULL);
-	lv_obj_set_style_bg_color(start_btn, lv_palette_main(LV_PALETTE_GREEN),
+	lv_obj_set_style_bg_color(start_btn,
+				  lv_palette_main(LV_PALETTE_GREEN),
 				  LV_PART_MAIN);
 
 	label = lv_label_create(start_btn);
@@ -1600,11 +1701,17 @@ int32_t pl_gui_create_capture_view(lv_obj_t *parent,
 	/* Create the all channels enable button */
 	enable_all_btn = lv_btn_create(parent);
 	lv_obj_set_size(enable_all_btn, 120, 45);
-	lv_obj_align_to(enable_all_btn, start_btn, LV_ALIGN_RIGHT_MID, 150,
+	lv_obj_align_to(enable_all_btn,
+			start_btn,
+			LV_ALIGN_RIGHT_MID,
+			150,
 			0);
-	lv_obj_add_event(enable_all_btn, pl_gui_capture_btn_event_cb, LV_EVENT_ALL,
+	lv_obj_add_event(enable_all_btn,
+			 pl_gui_capture_btn_event_cb,
+			 LV_EVENT_ALL,
 			 NULL);
-	lv_obj_set_style_bg_color(enable_all_btn, lv_palette_main(LV_PALETTE_BLUE),
+	lv_obj_set_style_bg_color(enable_all_btn,
+				  lv_palette_main(LV_PALETTE_BLUE),
 				  LV_PART_MAIN);
 
 	label = lv_label_create(enable_all_btn);
@@ -1614,11 +1721,17 @@ int32_t pl_gui_create_capture_view(lv_obj_t *parent,
 	/* Create the all channels disable button */
 	disable_all_btn = lv_btn_create(parent);
 	lv_obj_set_size(disable_all_btn, 120, 45);
-	lv_obj_align_to(disable_all_btn, enable_all_btn, LV_ALIGN_RIGHT_MID, 150,
+	lv_obj_align_to(disable_all_btn,
+			enable_all_btn,
+			LV_ALIGN_RIGHT_MID,
+			150,
 			0);
-	lv_obj_add_event(disable_all_btn, pl_gui_capture_btn_event_cb, LV_EVENT_ALL,
+	lv_obj_add_event(disable_all_btn,
+			 pl_gui_capture_btn_event_cb,
+			 LV_EVENT_ALL,
 			 NULL);
-	lv_obj_set_style_bg_color(disable_all_btn, lv_palette_main(LV_PALETTE_BLUE),
+	lv_obj_set_style_bg_color(disable_all_btn,
+				  lv_palette_main(LV_PALETTE_BLUE),
 				  LV_PART_MAIN);
 
 	label = lv_label_create(disable_all_btn);
@@ -1628,7 +1741,10 @@ int32_t pl_gui_create_capture_view(lv_obj_t *parent,
 	/* Create check boxes to enable display of channels */
 	lv_obj_t *cont_col = lv_obj_create(parent);
 	lv_obj_set_size(cont_col, 125, 340);
-	lv_obj_align_to(cont_col, pl_gui_dd_device_select, LV_ALIGN_OUT_BOTTOM_MID, 0,
+	lv_obj_align_to(cont_col,
+			pl_gui_dd_device_select,
+			LV_ALIGN_OUT_BOTTOM_MID,
+			0,
 			10);
 	lv_obj_set_flex_flow(cont_col, LV_FLEX_FLOW_COLUMN);
 
@@ -1638,34 +1754,53 @@ int32_t pl_gui_create_capture_view(lv_obj_t *parent,
 	lv_obj_align_to(pl_gui_capture_chart, cont_col, LV_ALIGN_OUT_RIGHT_MID, 100, 0);
 
 	/* Display labels on x and y axises */
-	lv_chart_set_axis_tick(pl_gui_capture_chart, LV_CHART_AXIS_PRIMARY_Y, 5, 0, 9,
-			       1, true,
+	lv_chart_set_axis_tick(pl_gui_capture_chart,
+			       LV_CHART_AXIS_PRIMARY_Y,
+			       5,
+			       0,
+			       9,
+			       1,
+			       true,
 			       100);
-	lv_chart_set_axis_tick(pl_gui_capture_chart, LV_CHART_AXIS_PRIMARY_X, 5, 0, 9,
-			       1, true,
+	lv_chart_set_axis_tick(pl_gui_capture_chart,
+			       LV_CHART_AXIS_PRIMARY_X,
+			       5,
+			       0,
+			       9,
+			       1,
+			       true,
 			       20);
 
 	/* Set the x and y axises range (Input data range) */
-	lv_chart_set_range(pl_gui_capture_chart, LV_CHART_AXIS_PRIMARY_Y,
+	lv_chart_set_range(pl_gui_capture_chart,
+			   LV_CHART_AXIS_PRIMARY_Y,
 			   PL_GUI_DATA_MIN_RANGE,
 			   PL_GUI_DATA_MAX_RANGE);
-	lv_chart_set_range(pl_gui_capture_chart, LV_CHART_AXIS_PRIMARY_X, 0,
+	lv_chart_set_range(pl_gui_capture_chart,
+			   LV_CHART_AXIS_PRIMARY_X,
+			   0,
 			   PL_GUI_REQ_DATA_SAMPLES);
 
 	/* Create an overlay pl_gui_capture_chart for displaying actual data */
 	pl_gui_capture_chart_ovrly = lv_chart_create(parent);
 	lv_obj_set_size(pl_gui_capture_chart_ovrly, 540, 340);
-	lv_obj_align_to(pl_gui_capture_chart_ovrly, cont_col, LV_ALIGN_OUT_RIGHT_MID,
-			100, 0);
+	lv_obj_align_to(pl_gui_capture_chart_ovrly,
+			cont_col,
+			LV_ALIGN_OUT_RIGHT_MID,
+			100,
+			0);
 	lv_chart_set_type(pl_gui_capture_chart_ovrly, LV_CHART_TYPE_LINE);
 	lv_chart_set_update_mode(pl_gui_capture_chart_ovrly,
 				 LV_CHART_UPDATE_MODE_CIRCULAR);
 
 	/* Set the x and y axises range (rescaled from actual input data range) */
-	lv_chart_set_range(pl_gui_capture_chart_ovrly, LV_CHART_AXIS_PRIMARY_Y,
+	lv_chart_set_range(pl_gui_capture_chart_ovrly,
+			   LV_CHART_AXIS_PRIMARY_Y,
 			   PL_GUI_CHART_MIN_PXL_RANGE,
 			   PL_GUI_CHART_MAX_PXL_RANGE);
-	lv_chart_set_range(pl_gui_capture_chart_ovrly, LV_CHART_AXIS_PRIMARY_X, 0,
+	lv_chart_set_range(pl_gui_capture_chart_ovrly,
+			   LV_CHART_AXIS_PRIMARY_X,
+			   0,
 			   PL_GUI_REQ_DATA_SAMPLES);
 
 	/* Do not display points on the data */
@@ -1677,7 +1812,8 @@ int32_t pl_gui_create_capture_view(lv_obj_t *parent,
 
 	/* Get the name of all channels and channel count */
 	dropdown_list[0] = '\0';
-	ret = pl_gui_get_chn_names(dropdown_list, &pl_gui_capture_chn_cnt,
+	ret = pl_gui_get_chn_names(dropdown_list,
+				   &pl_gui_capture_chn_cnt,
 				   pl_gui_device_indx);
 	if (ret) {
 		return ret;
@@ -1782,13 +1918,15 @@ int32_t pl_gui_create_analysis_view(lv_obj_t *parent,
 	pl_gui_dd_device_select = lv_dropdown_create(parent);
 	lv_obj_align(pl_gui_dd_device_select, LV_ALIGN_OUT_RIGHT_TOP, 10, 0);
 	lv_dropdown_set_options(pl_gui_dd_device_select, dropdown_list);
-	lv_obj_add_event(pl_gui_dd_device_select, pl_gui_device_select_event_cb,
+	lv_obj_add_event(pl_gui_dd_device_select,
+			 pl_gui_device_select_event_cb,
 			 LV_EVENT_ALL,
 			 NULL);
 
 	/* Get the name of all channels and channel count */
 	dropdown_list[0] = '\0';
-	ret = pl_gui_get_chn_names(dropdown_list, &pl_gui_fft_chn_cnt,
+	ret = pl_gui_get_chn_names(dropdown_list,
+				   &pl_gui_fft_chn_cnt,
 				   pl_gui_device_indx);
 	if (ret) {
 		return ret;
@@ -1796,11 +1934,14 @@ int32_t pl_gui_create_analysis_view(lv_obj_t *parent,
 
 	/* Create drop-down to select channel */
 	pl_gui_fft_chn_select = lv_dropdown_create(parent);
-	lv_obj_align_to(pl_gui_fft_chn_select, pl_gui_dd_device_select,
+	lv_obj_align_to(pl_gui_fft_chn_select,
+			pl_gui_dd_device_select,
 			LV_ALIGN_OUT_RIGHT_TOP,
-			10, 0);
+			10,
+			0);
 	lv_dropdown_set_options(pl_gui_fft_chn_select, dropdown_list);
-	lv_obj_add_event(pl_gui_fft_chn_select, pl_gui_chn_select_event_cb,
+	lv_obj_add_event(pl_gui_fft_chn_select,
+			 pl_gui_chn_select_event_cb,
 			 LV_EVENT_ALL,
 			 NULL);
 	lv_obj_set_width(pl_gui_fft_chn_select, 150);
@@ -1808,12 +1949,17 @@ int32_t pl_gui_create_analysis_view(lv_obj_t *parent,
 	/* Create the FFT Start/Stop Button */
 	start_btn = lv_btn_create(parent);
 	lv_obj_set_size(start_btn, 100, 40);
-	lv_obj_align_to(start_btn, pl_gui_fft_chn_select,
+	lv_obj_align_to(start_btn,
+			pl_gui_fft_chn_select,
 			LV_ALIGN_OUT_RIGHT_TOP,
-			10, 0);
-	lv_obj_add_event(start_btn, pl_gui_fft_btn_event_cb, LV_EVENT_ALL,
+			10,
+			0);
+	lv_obj_add_event(start_btn,
+			 pl_gui_fft_btn_event_cb,
+			 LV_EVENT_ALL,
 			 NULL);
-	lv_obj_set_style_bg_color(start_btn, lv_palette_main(LV_PALETTE_GREEN),
+	lv_obj_set_style_bg_color(start_btn,
+				  lv_palette_main(LV_PALETTE_GREEN),
 				  LV_PART_MAIN);
 
 	label = lv_label_create(start_btn);
@@ -1826,7 +1972,12 @@ int32_t pl_gui_create_analysis_view(lv_obj_t *parent,
 	lv_obj_set_pos(pl_gui_fft_chart, 30, 50);
 
 	/* Display labels on x and y axises */
-	lv_chart_set_axis_tick(pl_gui_fft_chart, LV_CHART_AXIS_PRIMARY_Y, 5, 0, 9, 1,
+	lv_chart_set_axis_tick(pl_gui_fft_chart,
+			       LV_CHART_AXIS_PRIMARY_Y,
+			       5,
+			       0,
+			       9,
+			       1,
 			       true,
 			       100);
 	// TODO- Check if scale can be displayed in terms of sampling frequency (Fs)
@@ -1836,10 +1987,13 @@ int32_t pl_gui_create_analysis_view(lv_obj_t *parent,
 	//		       20);
 
 	/* Set the x and y axises range (input data range) */
-	lv_chart_set_range(pl_gui_fft_chart, LV_CHART_AXIS_PRIMARY_Y,
+	lv_chart_set_range(pl_gui_fft_chart,
+			   LV_CHART_AXIS_PRIMARY_Y,
 			   -200,
 			   0);
-	lv_chart_set_range(pl_gui_fft_chart, LV_CHART_AXIS_PRIMARY_X, 0,
+	lv_chart_set_range(pl_gui_fft_chart,
+			   LV_CHART_AXIS_PRIMARY_X,
+			   0,
 			   fft_bins);
 
 	/* Do not display points on the data */
@@ -1897,8 +2051,13 @@ int32_t pl_gui_create_analysis_view(lv_obj_t *parent,
 		return -ENOMEM;
 	}
 
+	if (param->view_extender != NULL) {
+		param->view_extender->extend_analysis_view(parent);
+	}
+
 	/* Initialize the FFT parameters */
-	return adi_fft_init(param->device_params->fft_params, &pl_gui_fft_proc,
+	return adi_fft_init(param->device_params->fft_params,
+			    &pl_gui_fft_proc,
 			    &pl_gui_fft_meas);
 }
 
@@ -2049,6 +2208,9 @@ int32_t pl_gui_init(struct pl_gui_desc **desc,
 
 	fft_data_samples = param->device_params->fft_params->samples_count;
 	fft_bins = fft_data_samples / 2;
+
+	pl_structure->event1 = param->event1;
+	pl_structure->event2 = param->event2;
 
 	return 0;
 }

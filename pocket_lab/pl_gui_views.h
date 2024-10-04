@@ -2,7 +2,7 @@
  *   @file   pl_gui_views.h
  *   @brief  Pocket lab GUI views
 ******************************************************************************
-* Copyright (c) 2023 Analog Devices, Inc.
+* Copyright (c) 2023-24 Analog Devices, Inc.
 * All rights reserved.
 *
 * This software is proprietary to Analog Devices, Inc. and its licensors.
@@ -84,8 +84,17 @@ struct pl_gui_init_param {
 	struct pl_gui_views *views;
 	/* Pocket lab GUI device parameters */
 	struct pl_gui_device_param *device_params;
+	struct extend_view *view_extender;
+	void (*event1)(void);
+	void(*event2)(struct adi_fft_processing*, uint32_t fft_samples,
+		      uint32_t fft_bins);
 	/* Init parameters extra */
 	void *extra;
+};
+
+/* Pocket Lab structure to extend views */
+struct extend_view {
+	void(*extend_analysis_view)(lv_obj_t *);
 };
 
 /* Pocket lab GUI view parameters */

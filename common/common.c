@@ -16,6 +16,7 @@
 
 #include "common.h"
 #include "board_info.h"
+#include "no_os_alloc.h"
 #if defined (TARGET_SDP_K1)
 #include "sdp_k1_sdram.h"
 #endif
@@ -280,6 +281,25 @@ int32_t get_iio_context_attributes(struct iio_ctx_attr **ctx_attr,
 	num_of_context_attributes = cnt;
 	*ctx_attr = context_attributes;
 	*attrs_cnt = num_of_context_attributes;
+
+	return 0;
+}
+
+/**
+ * @brief	Free the resources allocated by get_iio_context_attributes()
+ * @param 	ctx_attr[in] - Pointer to IIO context attributes init param
+ * @return	0 in case of success, negative error code otherwise
+ */
+int32_t remove_iio_context_attributes(struct iio_ctx_attr *ctx_attr)
+{
+	if (!ctx_attr) {
+		return -EINVAL;
+	}
+
+	/* Free the allocated context attributes array */
+	no_os_free(ctx_attr);
+
+	ctx_attr = NULL;
 
 	return 0;
 }

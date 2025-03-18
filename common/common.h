@@ -60,6 +60,7 @@ int32_t get_iio_context_attributes(struct iio_ctx_attr **ctx_attr,
 int32_t remove_iio_context_attributes(struct iio_ctx_attr *ctx_attr);
 int32_t eeprom_init(struct no_os_eeprom_desc **eeprom_desc,
 		    struct no_os_eeprom_init_param *eeprom_init_params);
+int32_t eeprom_close(struct no_os_eeprom_desc *eeprom_desc);
 uint8_t get_eeprom_detected_dev_addr(void);
 bool is_eeprom_valid_dev_addr_detected(void);
 int32_t sdram_init(void);

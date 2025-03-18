@@ -85,6 +85,27 @@ int32_t eeprom_init(struct no_os_eeprom_desc **eeprom_desc,
 }
 
 /**
+ * @brief 	Close the EEPROM
+ * @param	eeprom_desc[in] - EEPROM descriptor
+ * @return	0 in case of success, negative error code otherwise
+ */
+int32_t eeprom_close(struct no_os_eeprom_desc *eeprom_desc)
+{
+	int32_t ret;
+
+	if (!eeprom_desc) {
+		return -EINVAL;
+	}
+
+	ret = no_os_eeprom_remove(eeprom_desc);
+	if (ret) {
+		return ret;
+	}
+
+	return 0;
+}
+
+/**
  * @brief 	Store the EEPROM device address
  * @param	eeprom_desc[in] - EEPROM descriptor
  * @param	dev_addr[in] - EEPROM device address

@@ -194,7 +194,7 @@ static adi_fft_data_to_volt_conv data_to_volt_wrt_vref;
 static adi_fft_code_to_straight_bin_conv code_to_straight_binary;
 
 /* Pocket Lab Instance */
-static struct pl_gui_init_param pl_instance =  {
+static struct pl_gui_init_param pl_instance = {
 	.event1 = NULL,
 	.event2 = NULL
 };
@@ -446,7 +446,7 @@ static void pl_gui_rescale_data(int32_t *data)
 {
 	float scaler;
 
-	scaler = ((float)*data - (PL_GUI_DATA_MIN_RANGE)) / ((
+	scaler = ((float) * data - (PL_GUI_DATA_MIN_RANGE)) / ((
 				PL_GUI_DATA_MAX_RANGE -
 				(PL_GUI_DATA_MIN_RANGE)));
 	*data = ((PL_GUI_CHART_MAX_PXL_RANGE - (PL_GUI_CHART_MIN_PXL_RANGE)) * scaler) +
@@ -477,6 +477,7 @@ void pl_gui_display_captured_data(uint8_t *buf, uint32_t rec_bytes)
 				    (LV_STATE_CHECKED | LV_STATE_DISABLED)) {
 					storage_bytes = pl_gui_capture_chn_info[chn]->storagebits >> 3;
 					memcpy((void *)&code, (void *)&buf[indx], storage_bytes);
+
 					/* Convert code to straight binary */
 					data = pl_gui_cnv_code_to_straight_binary(code, chn);
 
@@ -485,6 +486,7 @@ void pl_gui_display_captured_data(uint8_t *buf, uint32_t rec_bytes)
 					lv_chart_set_next_value(pl_gui_capture_chart_ovrly,
 								pl_gui_capture_chn_ser[chn],
 								data);
+					indx += storage_bytes;
 				}
 			}
 		} else if (pl_gui_fft_is_running) {
@@ -499,11 +501,10 @@ void pl_gui_display_captured_data(uint8_t *buf, uint32_t rec_bytes)
 			if (cnt >= fft_data_samples) {
 				break;
 			}
+			indx += storage_bytes;
 		} else {
 			return;
 		}
-
-		indx += storage_bytes;
 
 		if (cnt >= fft_data_samples) {
 			break;
@@ -908,7 +909,7 @@ static void pl_gui_dmm_btn_event_cb(lv_event_t *event)
 			if (!pl_gui_dmm_is_running) {
 				for (cnt = 0; cnt < pl_gui_dmm_chn_cnt; cnt++) {
 					lv_obj_add_state(pl_gui_dmm_chn_checkbox[cnt],
-							 LV_STATE_CHECKED | LV_STATE_DISABLED);
+							 LV_STATE_CHECKED);
 				}
 			}
 		} else if (!strcmp(text, "Disable All")) {
@@ -994,7 +995,7 @@ static void pl_gui_capture_btn_event_cb(lv_event_t *event)
 					if (lv_obj_get_state(pl_gui_capture_chn_checkbox[cnt]) ==
 					    (LV_STATE_CHECKED | LV_STATE_DISABLED)) {
 						lv_obj_clear_state(pl_gui_capture_chn_checkbox[cnt],
-								   LV_STATE_CHECKED| LV_STATE_DISABLED);
+								   LV_STATE_CHECKED | LV_STATE_DISABLED);
 						lv_chart_remove_series(pl_gui_capture_chart_ovrly, pl_gui_capture_chn_ser[cnt]);
 						pl_gui_capture_chn_ser[cnt] = NULL;
 					} else {
@@ -1762,14 +1763,6 @@ int32_t pl_gui_create_capture_view(lv_obj_t *parent,
 			       1,
 			       true,
 			       100);
-	lv_chart_set_axis_tick(pl_gui_capture_chart,
-			       LV_CHART_AXIS_PRIMARY_X,
-			       5,
-			       0,
-			       9,
-			       1,
-			       true,
-			       20);
 
 	/* Set the x and y axises range (Input data range) */
 	lv_chart_set_range(pl_gui_capture_chart,
@@ -1802,6 +1795,29 @@ int32_t pl_gui_create_capture_view(lv_obj_t *parent,
 			   LV_CHART_AXIS_PRIMARY_X,
 			   0,
 			   PL_GUI_REQ_DATA_SAMPLES);
+
+	/* Define the number of tick labels */
+	int num_ticks = 9; // Adjust as needed
+	int tick_spacing = 60; // Adjust for better spacing
+
+	/* Generate and position labels dynamically */
+	for (i = 0; i < num_ticks; i++) {
+		float freq_value = (PL_GUI_REQ_DATA_SAMPLES) * i / (num_ticks - 1);
+		/* Convert frequency value to a string */
+		char tick_label[10];
+
+		sprintf(tick_label, "%.f", freq_value);
+
+		/* Create label */
+		lv_obj_t *lbl = lv_label_create(parent);
+		lv_label_set_text(lbl, tick_label);
+
+		lv_obj_align_to(lbl,
+				pl_gui_capture_chart_ovrly,
+				LV_ALIGN_OUT_BOTTOM_MID,
+				(i - num_ticks / 2) * tick_spacing,
+				10);
+	}
 
 	/* Do not display points on the data */
 #if LV_VERSION_CHECK(9,0,0)
@@ -1906,6 +1922,11 @@ int32_t pl_gui_create_analysis_view(lv_obj_t *parent,
 	char dropdown_list[200];
 	lv_obj_t *start_btn;
 	lv_obj_t *label;
+	uint32_t sampling_freq;
+	/* Define the number of tick labels */
+	int num_ticks = 9; // Adjust as needed
+	int tick_spacing = 60; // Adjust for better spacing
+	uint8_t i;
 
 	/* Get device names */
 	dropdown_list[0] = '\0';
@@ -1971,7 +1992,7 @@ int32_t pl_gui_create_analysis_view(lv_obj_t *parent,
 	lv_obj_set_size(pl_gui_fft_chart, 600, 340);
 	lv_obj_set_pos(pl_gui_fft_chart, 30, 50);
 
-	/* Display labels on x and y axises */
+	/* Display labels on y axis */
 	lv_chart_set_axis_tick(pl_gui_fft_chart,
 			       LV_CHART_AXIS_PRIMARY_Y,
 			       5,
@@ -1980,11 +2001,8 @@ int32_t pl_gui_create_analysis_view(lv_obj_t *parent,
 			       1,
 			       true,
 			       100);
-	// TODO- Check if scale can be displayed in terms of sampling frequency (Fs)
-	// Range: 0 to Fs/2. Resolution = Fs/FFT length
-	//lv_chart_set_axis_tick(pl_gui_fft_chart, LV_CHART_AXIS_PRIMARY_X, 5, 0, 10, 1,
-	//		       true,
-	//		       20);
+
+	sampling_freq = param->device_params->fft_params->sample_rate;
 
 	/* Set the x and y axises range (input data range) */
 	lv_chart_set_range(pl_gui_fft_chart,
@@ -1994,7 +2012,48 @@ int32_t pl_gui_create_analysis_view(lv_obj_t *parent,
 	lv_chart_set_range(pl_gui_fft_chart,
 			   LV_CHART_AXIS_PRIMARY_X,
 			   0,
-			   fft_bins);
+			   sampling_freq / 2);
+
+	lv_obj_t *lbl;
+
+	/* Generate and position labels dynamically */
+	float first_tick_value = 0;
+	for (i = 1; i < num_ticks; i++) {
+		float freq_value = (sampling_freq / 2.0f) * i / (num_ticks - 1); // Scale ticks
+		/* Convert frequency value to a string */
+		char tick_label[10];
+		if (freq_value >= 1000) {
+			sprintf(tick_label, "%.1fk", freq_value / 1000.0f);
+		} else {
+			sprintf(tick_label, "%.1f", freq_value);
+		}
+
+		/* Save the first tick value */
+		if (i == 1) {
+			first_tick_value = freq_value;
+		}
+
+		/* Create label */
+		lbl = lv_label_create(parent);
+		lv_label_set_text(lbl, tick_label);
+		lv_obj_align_to(lbl, pl_gui_fft_chart, LV_ALIGN_OUT_BOTTOM_MID,
+				(i - num_ticks / 2) * tick_spacing, 10);
+	}
+
+	/* Print the mid value between 0 and the first tick */
+	if (first_tick_value > 0) {
+		float mid_value = first_tick_value / 2.0f;
+		char mid_tick_label[10];
+		if (mid_value >= 1000) {
+			sprintf(mid_tick_label, "%.1fk", mid_value / 1000.0f);
+		} else {
+			sprintf(mid_tick_label, "%.1f", mid_value);
+		}
+		lv_obj_t *mid_lbl = lv_label_create(parent);
+		lv_label_set_text(mid_lbl, mid_tick_label);
+		lv_obj_align_to(mid_lbl, pl_gui_fft_chart, LV_ALIGN_OUT_BOTTOM_MID,
+				(0 - num_ticks / 2) * tick_spacing, 10);
+	}
 
 	/* Do not display points on the data */
 #if LV_VERSION_CHECK(9,0,0)

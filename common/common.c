@@ -307,6 +307,130 @@ int32_t get_iio_context_attributes(struct iio_ctx_attr **ctx_attr,
 }
 
 /**
+ * @brief	Read IIO context attributes extended version (with fw_version attribute)
+ * @param 	ctx_attr[in,out] - Pointer to IIO context attributes init param
+ * @param	attrs_cnt[in,out] - IIO context attributes count
+ * @param	eeprom_desc[in] - EEPROM descriptor
+ * @param	hw_mezzanine[in,out] - HW Mezzanine ID string
+ * @param	hw_carrier[in,out] - HW Carrier ID string
+ * @param	hw_mezzanine_is_valid[in,out] - HW Mezzanine valid status
+ * @param	fw_version[in,out] - Firmware version string
+ * @return	0 in case of success, negative error code otherwise
+ */
+int32_t get_iio_context_attributes_ex(struct iio_ctx_attr **ctx_attr,
+				      uint32_t *attrs_cnt,
+				      struct no_os_eeprom_desc *eeprom_desc,
+				      const char *hw_mezzanine, const char *hw_carrier,
+				      bool *hw_mezzanine_is_valid,
+				      const char *fw_version)
+{
+	int32_t ret;
+	struct iio_ctx_attr *context_attributes;
+	const char *board_status;
+	uint8_t num_of_context_attributes = DEF_NUM_OF_CONTXT_ATTRS +
+					    1; //Todo: remove +1 later
+	uint8_t cnt = 0;
+	bool board_detect_error = false;
+
+	if (!ctx_attr || !attrs_cnt || !hw_carrier || !hw_mezzanine_is_valid) {
+		return -EINVAL;
+	}
+
+	ret = validate_eeprom(eeprom_desc);
+	if (ret) {
+		return ret;
+	}
+
+	if (is_eeprom_valid_dev_addr_detected()) {
+		/* Read the board information from EEPROM */
+		ret = read_board_info(eeprom_desc, &board_info);
+		if (ret) {
+			board_detect_error = true;
+		} else {
+			if (hw_mezzanine == NULL) {
+				if (board_info.board_id[0] != '\0') {
+					*hw_mezzanine_is_valid = true;
+				} else {
+					board_detect_error = true;
+				}
+			} else {
+				if (!strcmp(board_info.board_id, hw_mezzanine)) {
+					*hw_mezzanine_is_valid = true;
+				} else {
+					*hw_mezzanine_is_valid = false;
+					board_status = "mismatch";
+					num_of_context_attributes++;
+				}
+			}
+		}
+	} else {
+		board_detect_error = true;
+	}
+
+	if (board_detect_error) {
+		*hw_mezzanine_is_valid = false;
+		board_status = "not_detected";
+		num_of_context_attributes++;
+	}
+
+#if defined(COMMIT_VERSION)
+	num_of_context_attributes++;
+#endif
+
+	/* Allocate dynamic memory for context attributes based on number of attributes
+	 * detected/available */
+	context_attributes = (struct iio_ctx_attr *)calloc(
+				     num_of_context_attributes,
+				     sizeof(*context_attributes));
+	if (!context_attributes) {
+		return -ENOMEM;
+	}
+
+	/* Use default firmware version if not provided */
+	if (fw_version == NULL || fw_version[0] == '\0') {
+		fw_version = "v1.0.0-rc.1";
+	}
+
+	(context_attributes + cnt)->name = "fw_version";
+	(context_attributes + cnt)->value = fw_version;
+	cnt++;
+
+#if defined(COMMIT_VERSION)
+	(context_attributes + cnt)->name = "commit_version";
+	(context_attributes + cnt)->value = STR(COMMIT_VERSION);
+	cnt++;
+#endif
+
+	(context_attributes + cnt)->name = "hw_carrier";
+	(context_attributes + cnt)->value = hw_carrier;
+	cnt++;
+
+	if (board_info.board_id[0] != '\0') {
+		(context_attributes + cnt)->name = "hw_mezzanine";
+		(context_attributes + cnt)->value = board_info.board_id;
+		cnt++;
+	}
+
+	if (board_info.board_name[0] != '\0') {
+		(context_attributes + cnt)->name = "hw_name";
+		(context_attributes + cnt)->value = board_info.board_name;
+		cnt++;
+	}
+
+	if (!*hw_mezzanine_is_valid) {
+		(context_attributes + cnt)->name = "hw_mezzanine_status";
+		(context_attributes + cnt)->value = board_status;
+		cnt++;
+	}
+
+	num_of_context_attributes = cnt;
+	*ctx_attr = context_attributes;
+	*attrs_cnt = num_of_context_attributes;
+
+	return 0;
+}
+
+/**
  * @brief	Free the resources allocated by get_iio_context_attributes()
  * @param 	ctx_attr[in] - Pointer to IIO context attributes init param
  * @return	0 in case of success, negative error code otherwise

@@ -332,7 +332,8 @@ int32_t get_iio_context_attributes_ex(struct iio_ctx_attr **ctx_attr,
 	uint8_t cnt = 0;
 	bool board_detect_error = false;
 
-	if (!ctx_attr || !attrs_cnt || !hw_carrier || !hw_mezzanine_is_valid) {
+	if (!ctx_attr || !attrs_cnt || !hw_carrier || !hw_mezzanine_is_valid
+	    || !fw_version) {
 		return -EINVAL;
 	}
 
@@ -384,11 +385,6 @@ int32_t get_iio_context_attributes_ex(struct iio_ctx_attr **ctx_attr,
 				     sizeof(*context_attributes));
 	if (!context_attributes) {
 		return -ENOMEM;
-	}
-
-	/* Use default firmware version if not provided */
-	if (fw_version == NULL || fw_version[0] == '\0') {
-		fw_version = "v1.0.0-rc.1";
 	}
 
 	(context_attributes + cnt)->name = "fw_version";

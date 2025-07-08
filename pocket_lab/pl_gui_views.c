@@ -1753,7 +1753,7 @@ int32_t pl_gui_create_capture_view(lv_obj_t *parent,
 	lv_chart_set_range(pl_gui_capture_chart,
 			   LV_CHART_AXIS_PRIMARY_X,
 			   0,
-			   PL_GUI_REQ_DATA_SAMPLES;
+			   PL_GUI_REQ_DATA_SAMPLES);
 
 			   /* Y-axis scale (auto labels from range) */
 			   lv_obj_t *y_scale = lv_scale_create(parent);

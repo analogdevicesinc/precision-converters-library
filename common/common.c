@@ -48,6 +48,60 @@ static struct board_info board_info;
 static uint8_t eeprom_detected_dev_addr;
 static bool valid_eeprom_addr_detected;
 
+static bool dongle_feature_exists(const char *feature)
+{
+	int i;
+
+	if (!feature) {
+		return false;
+	}
+
+	for (i = 0; i < MAX_DONGLE_FEATURE && board_info.dongle_features[i] != NULL; i++) {
+		if (!strcmp(board_info.dongle_features[i], feature)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+static int32_t add_dongle_features_attr(struct iio_ctx_attr *context_attributes,
+		uint8_t *cnt)
+{
+	const char *peripherals[] = { "i2c", "gpio", "pwm", "swire", "uart", "spi" };
+	char features_str[256] = {0};
+	size_t offset = 0;
+	size_t i;
+
+	if (!context_attributes || !cnt) {
+		return -EINVAL;
+	}
+
+	for (i = 0; i < sizeof(peripherals) / sizeof(peripherals[0]); i++) {
+		const char *prefix = dongle_feature_exists(peripherals[i]) ? "*" : "";
+
+		offset += snprintf(features_str + offset, sizeof(features_str) - offset,
+				   "%s%s%s",
+				   (i > 0) ? " " : "",
+				   prefix,
+				   peripherals[i]);
+	}
+
+	if (offset > 0) {
+		char *features_copy = malloc(offset + 1);
+		if (!features_copy) {
+			return -ENOMEM;
+		}
+
+		strcpy(features_copy, features_str);
+		(context_attributes + *cnt)->name = "dongle_features";
+		(context_attributes + *cnt)->value = features_copy;
+		(*cnt)++;
+	}
+
+	return 0;
+}
+
 /******************************************************************************/
 /************************** Functions Definitions *****************************/
 /******************************************************************************/
@@ -328,7 +382,7 @@ int32_t get_iio_context_attributes_ex(struct iio_ctx_attr **ctx_attr,
 	struct iio_ctx_attr *context_attributes;
 	const char *board_status;
 	uint8_t num_of_context_attributes = DEF_NUM_OF_CONTXT_ATTRS +
-					    1; //Todo: remove +1 later
+					    1;
 	uint8_t cnt = 0;
 	bool board_detect_error = false;
 
@@ -417,6 +471,12 @@ int32_t get_iio_context_attributes_ex(struct iio_ctx_attr **ctx_attr,
 		(context_attributes + cnt)->name = "hw_mezzanine_status";
 		(context_attributes + cnt)->value = board_status;
 		cnt++;
+	}
+
+	ret = add_dongle_features_attr(context_attributes, &cnt);
+	if (ret) {
+		no_os_free(context_attributes);
+		return ret;
 	}
 
 	num_of_context_attributes = cnt;

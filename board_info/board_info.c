@@ -272,6 +272,17 @@ static int32_t read_and_parse_rpi_hat_plus_eeprom(struct no_os_eeprom_desc *desc
 	char product_uuid[RPI_HAT_PLUS_PRODUCT_UUID_LEN];
 	char vendor[RPI_HAT_EEPROM_DATA_MAX_LEN];
 	char device_tree_overlay[RPI_HAT_EEPROM_DATA_MAX_LEN];
+	uint32_t payload_len;
+	uint32_t tlv_offset;
+	uint32_t feature_count;
+	uint8_t tlv_tag;
+	uint8_t tlv_len;
+	size_t copy_len;
+	char feature_buf[RPI_HAT_EEPROM_DATA_MAX_LEN];
+	char *token_start;
+	char *token_end;
+	size_t token_len;
+	uint8_t offset;
 
 	if (!desc || !board_info)
 		return -EINVAL;
@@ -341,6 +352,72 @@ static int32_t read_and_parse_rpi_hat_plus_eeprom(struct no_os_eeprom_desc *desc
 			memcpy(device_tree_overlay, eeprom_data, dlen - RPI_HAT_PLUS_CRC_LEN);
 			device_tree_overlay[dlen - RPI_HAT_PLUS_CRC_LEN] = '\0';
 
+		} else if (atom_type == 4) {
+			if (strcmp(vendor, "Analog Devices Inc.") != 0) {
+				continue;
+			}
+
+			payload_len = dlen - RPI_HAT_PLUS_CRC_LEN;
+			tlv_offset = 0;
+
+			while (tlv_offset + 2 <= payload_len) {
+				tlv_tag = (uint8_t)eeprom_data[tlv_offset];
+				tlv_len = (uint8_t)eeprom_data[tlv_offset + 1];
+				tlv_offset += 2;
+
+				if (tlv_tag == 0xFF && tlv_len == 0)
+					break;
+
+				if (tlv_offset + tlv_len > payload_len)
+					return -EINVAL;
+
+				switch (tlv_tag) {
+				case 0x01:
+					copy_len = tlv_len;
+					if (copy_len >= sizeof(board_info->board_name))
+						copy_len = sizeof(board_info->board_name) - 1;
+
+					memcpy(board_info->board_name, &eeprom_data[tlv_offset], copy_len);
+					board_info->board_name[copy_len] = '\0';
+					break;
+				case 0x02:
+					if (tlv_len >= sizeof(feature_buf))
+						return -EINVAL;
+
+					memcpy(feature_buf, &eeprom_data[tlv_offset], tlv_len);
+					feature_buf[tlv_len] = '\0';
+
+					feature_count = 0;
+					token_start = feature_buf;
+					while (feature_count < MAX_DONGLE_FEATURE && token_start && *token_start) {
+						token_end = strchr(token_start, ',');
+						if (token_end)
+							token_len = (size_t)(token_end - token_start);
+						else
+							token_len = strlen(token_start);
+
+						if (token_len > 0) {
+							board_info->dongle_features[feature_count] = malloc(token_len + 1);
+							if (board_info->dongle_features[feature_count]) {
+								memcpy(board_info->dongle_features[feature_count],
+								       token_start, token_len);
+								board_info->dongle_features[feature_count][token_len] = '\0';
+								feature_count++;
+							}
+						}
+
+						if (!token_end)
+							break;
+
+						token_start = token_end + 1;
+					}
+					break;
+				default:
+					break;
+				}
+
+				tlv_offset += tlv_len;
+			}
 		}
 
 		address += dlen;

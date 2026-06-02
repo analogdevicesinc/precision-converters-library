@@ -52,6 +52,7 @@
 
 #define BOARD_ID_MAX_LEN		50
 #define BOARD_NAME_MAX_LEN		100
+#define MAX_DONGLE_FEATURE		10
 
 /******************************************************************************/
 /************************ Public Declarations *********************************/
@@ -61,6 +62,7 @@
 struct board_info {
 	char board_id[BOARD_ID_MAX_LEN];
 	char board_name[BOARD_NAME_MAX_LEN];
+	char *dongle_features[MAX_DONGLE_FEATURE];
 };
 
 int32_t read_board_info(struct no_os_eeprom_desc *desc,

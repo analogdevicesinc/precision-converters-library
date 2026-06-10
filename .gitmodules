@@ -1,0 +1,3 @@
+[submodule "lib-hatplus"]
+	path = lib-hatplus
+	url = https://github.com/adi-innersource/lib-hatplus.git

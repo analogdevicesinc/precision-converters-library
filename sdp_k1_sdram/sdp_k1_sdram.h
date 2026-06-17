@@ -2,7 +2,7 @@
  *   @file    sdp_k1_sdram.h
  *   @brief   SDP-K1 SDRAM functionality header
 ********************************************************************************
- * Copyright (c) 2022 Analog Devices, Inc.
+ * Copyright (c) 2022, 2026 Analog Devices, Inc.
  * All rights reserved.
  *
  * This software is proprietary to Analog Devices, Inc. and its licensors.
@@ -42,10 +42,13 @@
 /* #define SDRAM_MEMORY_WIDTH            FMC_SDRAM_MEM_BUS_WIDTH_16 */
 #define SDRAM_MEMORY_WIDTH               FMC_SDRAM_MEM_BUS_WIDTH_32
 
-/* #define SDCLOCK_PERIOD                   FMC_SDRAM_CLOCK_PERIOD_2 */ /* Works only with 3.3 logic level */
-#define SDCLOCK_PERIOD                   FMC_SDRAM_CLOCK_PERIOD_3  /* Works with both 1.8/3.3v logic level */
+#define SDCLOCK_PERIOD                   FMC_SDRAM_CLOCK_PERIOD_2 /* @90MHz, Works only with 3.3V logic level */
+//#define SDCLOCK_PERIOD                   FMC_SDRAM_CLOCK_PERIOD_3  /* @60MHz, Works with both 1.8/3.3V logic level */
 
-#define REFRESH_COUNT                    ((uint32_t)0x0569)   /* SDRAM refresh counter (90Mhz SD clock) */
+/* Refresh count = (64ms * SDRAM Clock frequency / Number of rows) - 20
+ * SDRAM: MT48LC4M32B2B5-6A, 4096 rows
+ */
+#define REFRESH_COUNT                    ((uint32_t)0x0569)   /* 90MHz: (64ms/4096)*90M - 20 = 1385 */
 
 #define SDRAM_TIMEOUT                    ((uint32_t)0xFFFF)
 

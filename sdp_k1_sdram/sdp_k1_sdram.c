@@ -2,7 +2,7 @@
  *   @file    sdp_k1_sdram.c
  *   @brief   SDP-K1 SDRAM functionality
 ********************************************************************************
- * Copyright (c) 2022 Analog Devices, Inc.
+ * Copyright (c) 2022, 2026 Analog Devices, Inc.
  * All rights reserved.
  *
  * This software is proprietary to Analog Devices, Inc. and its licensors.
@@ -40,14 +40,14 @@ uint8_t SDP_SDRAM_Init(void)
   /* SDRAM device configuration */
   hsdram1.Instance = FMC_SDRAM_DEVICE;
 
-  /* SdramTiming configuration */
-  SdramTiming.LoadToActiveDelay    = 16;
-  SdramTiming.ExitSelfRefreshDelay = 16;
-  SdramTiming.SelfRefreshTime      = 16;
-  SdramTiming.RowCycleDelay        = 16;
-  SdramTiming.WriteRecoveryTime    = 16;
-  SdramTiming.RPDelay              = 16;
-  SdramTiming.RCDDelay             = 16;
+  /* SdramTiming configuration at 90 MHz (HCLK/2), tCK = 11.11 ns */
+  SdramTiming.LoadToActiveDelay    = 2;
+  SdramTiming.ExitSelfRefreshDelay = 7;
+  SdramTiming.SelfRefreshTime      = 4;
+  SdramTiming.RowCycleDelay        = 7;
+  SdramTiming.WriteRecoveryTime    = 2;
+  SdramTiming.RPDelay              = 2;
+  SdramTiming.RCDDelay             = 2;
 
   hsdram1.Init.SDBank             = FMC_SDRAM_BANK1;
   hsdram1.Init.ColumnBitsNumber   = FMC_SDRAM_COLUMN_BITS_NUM_8;

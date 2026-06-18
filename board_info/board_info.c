@@ -46,6 +46,7 @@
 
 #include "board_info.h"
 #include "no_os_error.h"
+#include "no_os_util.h"
 
 /******************************************************************************/
 /************************ Macros/Constants ************************************/
@@ -59,6 +60,24 @@
 #define SDP_EEPROM_DATA_INDX			10
 #define SDP_EEPROM_RECORD_FOOTER_LEN	3
 
+/* RPI HAT+ EEPROM specific macros */
+#define RPI_HAT_EEPROM_DATA_MAX_LEN			256
+#define RPI_HAT_EEPROM_HEADER_LEN			12
+#define RPI_HAT_EEPROM_HEADER_VERSION_INDX		4
+#define RPI_HAT_EEPROM_HEADER_ATOMS_INDX		6
+#define RPI_HAT_EEPROM_HEADER_EEPLEN_INDX		8
+#define RPI_HAT_EEPROM_BASE_ATOM_LEN			8
+#define RPI_HAT_EEPROM_ATOM_TYPE_INDX			0
+#define RPI_HAT_EEPROM_ATOM_COUNT_INDX			2
+#define RPI_HAT_EEPROM_ATOM_DLEN_INDX			4
+#define RPI_HAT_EEPROM_ATOM_HEADER_LEN			8
+#define RPI_HAT_PLUS_VERSION				0x02
+#define RPI_HAT_PLUS_PRODUCT_UUID_LEN			16
+#define RPI_HAT_PLUS_PRODUCT_ID_LEN			2
+#define RPI_HAT_PLUS_PRODUCT_VERSION_LEN		2
+#define RPI_HAT_PLUS_CRC_LEN				2
+
+
 /******************************************************************************/
 /******************** Variables and User Defined Data Types *******************/
 /******************************************************************************/
@@ -68,6 +87,9 @@
 /******************************************************************************/
 
 static int32_t read_and_parse_sdp_eeprom(struct no_os_eeprom_desc *desc,
+		struct board_info *board_info);
+
+static int32_t read_and_parse_rpi_hat_plus_eeprom(struct no_os_eeprom_desc *desc,
 		struct board_info *board_info);
 
 /******************************************************************************/
@@ -92,6 +114,12 @@ int32_t read_board_info(struct no_os_eeprom_desc *desc,
 	do {
 		/* Read and parse SDP EEPROM format */
 		ret = read_and_parse_sdp_eeprom(desc, board_info);
+		if (!ret) {
+			break;
+		}
+
+		/* Read and parse RPI HAT+ EEPROM format */
+		ret = read_and_parse_rpi_hat_plus_eeprom(desc, board_info);
 		if (!ret) {
 			break;
 		}
@@ -215,6 +243,107 @@ static int32_t read_and_parse_sdp_eeprom(struct no_os_eeprom_desc *desc,
 		}
 
 		index += record_len;
+	}
+
+	return 0;
+}
+
+/**
+ * @brief 	Read and parse RPI HAT+ EEPROM data format
+ * @param	desc[in] - EEPROM descriptor
+ * @param	board_info[in, out] - Pointer to board info structure
+ * @return	0 in case of success, negative error code otherwise
+ */
+static int32_t read_and_parse_rpi_hat_plus_eeprom(struct no_os_eeprom_desc *desc,
+		struct board_info *board_info)
+{
+	uint8_t product_length;
+	uint8_t vendor_length;
+	uint16_t atom_count;
+	uint16_t atom_type;
+	uint16_t num_atoms;
+	uint16_t product_id;
+	uint16_t product_version;
+	uint32_t dlen;
+	uint32_t eeprom_len;
+	int32_t ret;
+	uint64_t address = 0x0;
+	char eeprom_data[RPI_HAT_EEPROM_DATA_MAX_LEN];
+	char product_uuid[RPI_HAT_PLUS_PRODUCT_UUID_LEN];
+	char vendor[RPI_HAT_EEPROM_DATA_MAX_LEN];
+	char device_tree_overlay[RPI_HAT_EEPROM_DATA_MAX_LEN];
+
+	if (!desc || !board_info)
+		return -EINVAL;
+
+	ret = no_os_eeprom_read(desc, address, (uint8_t *)eeprom_data,
+				RPI_HAT_EEPROM_HEADER_LEN);
+	if (ret)
+		return ret;
+
+	if (strncmp(eeprom_data, "R-Pi", 4) != 0)
+		return -EINVAL;
+
+	if (eeprom_data[RPI_HAT_EEPROM_HEADER_VERSION_INDX] != RPI_HAT_PLUS_VERSION)
+		return -EINVAL;
+
+	num_atoms = no_os_get_unaligned_le16((uint8_t *)&eeprom_data[RPI_HAT_EEPROM_HEADER_ATOMS_INDX]);
+	eeprom_len = no_os_get_unaligned_le32((uint8_t *)&eeprom_data[RPI_HAT_EEPROM_HEADER_EEPLEN_INDX]);
+	address = RPI_HAT_EEPROM_HEADER_LEN;
+
+	for(int i = 0; i < num_atoms; i++) {
+		ret = no_os_eeprom_read(desc, address, (uint8_t *)eeprom_data,
+					RPI_HAT_EEPROM_BASE_ATOM_LEN);
+		if (ret)
+			return ret;
+
+		atom_type = no_os_get_unaligned_le16((uint8_t *)&eeprom_data[RPI_HAT_EEPROM_ATOM_TYPE_INDX]);
+		atom_count = no_os_get_unaligned_le16((uint8_t *)&eeprom_data[RPI_HAT_EEPROM_ATOM_COUNT_INDX]);
+		dlen = no_os_get_unaligned_le32((uint8_t *)&eeprom_data[RPI_HAT_EEPROM_ATOM_DLEN_INDX]);
+		address += RPI_HAT_EEPROM_ATOM_HEADER_LEN;
+
+		if (dlen < RPI_HAT_PLUS_CRC_LEN)
+			continue;
+
+		if (address + dlen > eeprom_len)
+			break;
+
+		ret = no_os_eeprom_read(desc, address, (uint8_t *)eeprom_data,
+					dlen - RPI_HAT_PLUS_CRC_LEN);
+		if (ret)
+			return ret;
+
+		if (atom_type == 1) {
+			uint8_t offset = 0;
+
+			memcpy(product_uuid, &eeprom_data[offset], RPI_HAT_PLUS_PRODUCT_UUID_LEN);
+			offset += RPI_HAT_PLUS_PRODUCT_UUID_LEN;
+
+			product_id = no_os_get_unaligned_le16((uint8_t *)&eeprom_data[offset]);
+			offset += RPI_HAT_PLUS_PRODUCT_ID_LEN;
+
+			product_version = no_os_get_unaligned_le16((uint8_t *)&eeprom_data[offset]);
+			offset += RPI_HAT_PLUS_PRODUCT_VERSION_LEN;
+
+			vendor_length = eeprom_data[offset++];
+			product_length = eeprom_data[offset++];
+
+			memcpy(vendor, &eeprom_data[offset], vendor_length);
+			vendor[vendor_length] = '\0';
+			offset += vendor_length;
+
+			memcpy(board_info->board_id, &eeprom_data[offset], product_length);
+			board_info->board_id[product_length] = '\0';
+			memcpy(board_info->board_name, &eeprom_data[offset], product_length);
+			board_info->board_name[product_length] = '\0';
+
+		} else if (atom_type == 3) {
+			memcpy(device_tree_overlay, eeprom_data, dlen - RPI_HAT_PLUS_CRC_LEN);
+			device_tree_overlay[dlen - RPI_HAT_PLUS_CRC_LEN] = '\0';
+
+		}
+
+		address += dlen;
 	}
 
 	return 0;
